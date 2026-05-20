@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const API_URL = "/api/fireguard";
+const API_URL =
+  "https://script.google.com/macros/s/AKfycbyrdGnZs18Ur6Cxf0nnC2TsRCZ1C1FmK1aVB8Dx-Kr0mGB90s4ZmCIBavldIRaHBt7OoQ/exec";
 type Extinguisher = {
   id: string;
   location: string;
@@ -57,34 +58,23 @@ export default function HomePage() {
         const json = await res.json();
         const raw = Array.isArray(json) ? json : Array.isArray(json?.data) ? json.data : [];
 
-        if (raw.length > 0 && !raw.some((r: Record<string, unknown>) => Object.prototype.hasOwnProperty.call(r, "รหัสถังดับเพลิง"))) {
-          console.error('API response is missing required column: "รหัสถังดับเพลิง"');
-          setError('ไม่พบคอลัมน์ "รหัสถังดับเพลิง" ในข้อมูล API');
-        }
-
-        const currentMonthColumn = MONTH_COLUMNS[new Date().getMonth()];
-        const mapped: Extinguisher[] = raw.map((r: Record<string, unknown>) => {
-          const checkedAtRaw = pick(r, ["วันที่ตรวจ", "checkedAt", "date", "timestamp", "updatedAt"]);
+        const mapped: Extinguisher[] = raw.map((r: Record<string, unknown>, i: number) => {
+          const checkedAtRaw = pick(r, ["ตรวจล่าสุด", "วันที่ตรวจ", "checkedAt", "date", "timestamp", "updatedAt"]);
           const date = parseDate(checkedAtRaw);
-          const id = String(pick(r, ["รหัสถังดับเพลิง", "mapId"]) || "-");
-          const latestStatusRaw = pick(r, ["ตรวจล่าสุด"]);
-          const monthlyStatusRaw = pick(r, [currentMonthColumn]);
-          const statusRaw = selectedMonth === "all" ? (latestStatusRaw || monthlyStatusRaw) : monthlyStatusRaw || latestStatusRaw;
-          const status = parseStatus(statusRaw);
-          const mapXRaw = pick(r, ["mapX"]);
-          const mapYRaw = pick(r, ["mapY"]);
-          const mapName = String(pick(r, ["mapName", "อาคาร"]) || "-");
-          const mapImage = String(pick(r, ["mapImage"]) || "/maps/er-floor1.png");
-          const monthlyStatus = MONTH_COLUMNS.some((m) => String(r[m] ?? "").trim() !== "")
-            ? MONTH_COLUMNS.map((m) => `${m}:${String(r[m] ?? "-")}`).join(" | ")
-            : "-";
-
+          const id = String(pick(r, ["รหัสถังดับเพลิง", "id", "fireId", "ถัง", "tankId", "qr", "serial"]) || `FG-${i + 1}`);
+          const status = parseStatus(pick(r, ["status", "result", "สถานะ", "checked"]));
+          const mapXRaw = pick(r, ["mapX", "x", "posX"]);
+          const mapYRaw = pick(r, ["mapY", "y", "posY"]);
+          const mapName = String(pick(r, ["mapName", "building", "map", "แผนผัง"]) || "แผนผังหลัก");
+          const mapImage = String(pick(r, ["mapImage", "mapUrl", "image", "mapPath"]) || "/maps/er-floor1.png");
+const monthlyStatus =
+  MONTH_COLUMNS.find((m) => String(r[m] ?? "").trim() !== "") || "-";
           return {
             id,
-            location: String(pick(r, ["จุดติดตั้ง"]) || "-"),
-            zone: String(pick(r, ["อาคาร"]) || "-"),
+            location: String(pick(r, ["จุดติดตั้ง", "location", "ตำแหน่ง"]) || "-"),
+            zone: String(pick(r, ["อาคาร", "zone", "area"]) || "-"),
             inspector: String(pick(r, ["inspector", "ผู้ตรวจ", "checker", "name"]) || "ไม่ระบุ"),
-            status,
+            status: monthlyStatus === "-" ? status : parseStatus(monthlyStatus),
             checkedAt: monthlyStatus,
             monthKey: date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}` : "unknown",
             mapX: mapXRaw === "" ? null : Number(mapXRaw),
