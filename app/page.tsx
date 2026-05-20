@@ -1,0 +1,192 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+
+const API_URL =
+  "https://script.google.com/macros/s/AKfycbyykPLFJX4QlL--C3-E-F0Ji-lt516M7UB2BtTRv05G2ttkf7jt-QpDSqEw2A9fwjlUXQ/exec";
+type Extinguisher = {
+  id: string;
+  location: string;
+  zone: string;
+  inspector: string;
+  status: "checked" | "unchecked" | "unknown";
+  checkedAt: string;
+  monthKey: string;
+  mapX: number | null;
+  mapY: number | null;
+};
+
+const pick = (obj: Record<string, unknown>, keys: string[]) => {
+  const found = keys.find((k) => obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== "");
+  return found ? obj[found] : "";
+};
+
+const parseDate = (value: unknown): Date | null => {
+  if (!value) return null;
+  const d = new Date(String(value));
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+const parseStatus = (value: unknown): Extinguisher["status"] => {
+  const v = String(value ?? "").toLowerCase();
+  if (["checked", "ตรวจแล้ว", "done", "ok", "1", "yes", "y"].some((x) => v.includes(x))) return "checked";
+  if (["unchecked", "ยังไม่ตรวจ", "pending", "no", "0", "n"].some((x) => v.includes(x))) return "unchecked";
+  return "unknown";
+};
+
+const monthFormat = new Intl.DateTimeFormat("th-TH", { month: "long", year: "numeric" });
+
+export default function HomePage() {
+  const [rows, setRows] = useState<Extinguisher[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState("all");
+  const [active, setActive] = useState<Extinguisher | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(API_URL, { cache: "no-store" });
+        if (!res.ok) throw new Error(`โหลดข้อมูลไม่สำเร็จ (${res.status})`);
+        const json = await res.json();
+        const raw = Array.isArray(json) ? json : Array.isArray(json?.data) ? json.data : [];
+
+        const mapped: Extinguisher[] = raw.map((r: Record<string, unknown>, i: number) => {
+          const checkedAtRaw = pick(r, ["checkedAt", "date", "วันที่ตรวจ", "timestamp", "updatedAt"]);
+          const date = parseDate(checkedAtRaw);
+          const id = String(pick(r, ["id", "fireId", "ถัง", "tankId", "qr", "serial"]) || `FG-${i + 1}`);
+          const status = parseStatus(pick(r, ["status", "result", "สถานะ", "checked"]));
+          const mapXRaw = pick(r, ["mapX", "x", "posX"]);
+          const mapYRaw = pick(r, ["mapY", "y", "posY"]);
+
+          return {
+            id,
+            location: String(pick(r, ["location", "ตำแหน่ง", "point", "spot"]) || "ไม่ระบุ"),
+            zone: String(pick(r, ["zone", "area", "แผนก", "unit"]) || "ไม่ระบุ"),
+            inspector: String(pick(r, ["inspector", "ผู้ตรวจ", "checker", "name"]) || "ไม่ระบุ"),
+            status,
+            checkedAt: date ? date.toLocaleDateString("th-TH") : "-",
+            monthKey: date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}` : "unknown",
+            mapX: mapXRaw === "" ? null : Number(mapXRaw),
+            mapY: mapYRaw === "" ? null : Number(mapYRaw)
+          };
+        });
+
+        setRows(mapped);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, []);
+
+  const months = useMemo(() => {
+    const unique = Array.from(new Set(rows.map((r) => r.monthKey).filter((m) => m !== "unknown"))).sort().reverse();
+    return unique.map((m) => {
+      const [y, mm] = m.split("-").map(Number);
+      return { key: m, label: monthFormat.format(new Date(y, mm - 1, 1)) };
+    });
+  }, [rows]);
+
+  const filtered = useMemo(() => (selectedMonth === "all" ? rows : rows.filter((r) => r.monthKey === selectedMonth)), [rows, selectedMonth]);
+
+  const kpi = useMemo(() => {
+    const total = filtered.length;
+    const checked = filtered.filter((r) => r.status === "checked").length;
+    const unchecked = filtered.filter((r) => r.status === "unchecked").length;
+    const completeness = total ? Math.round((checked / total) * 100) : 0;
+    return { total, checked, unchecked, completeness };
+  }, [filtered]);
+
+  return (
+    <main className="container">
+      <header>
+        <h1>FireGuard QR Dashboard</h1>
+        <p>ENV Team โรงพยาบาลบางคล้า</p>
+      </header>
+      {loading && <p>กำลังโหลดข้อมูล...</p>}
+      {error && <p className="error">{error}</p>}
+
+      {!loading && !error && (
+        <>
+          <section className="kpis">
+            <Card label="ถังทั้งหมด" value={kpi.total} />
+            <Card label="ตรวจแล้ว" value={kpi.checked} />
+            <Card label="ยังไม่ตรวจ" value={kpi.unchecked} />
+            <Card label="ความครบถ้วน" value={`${kpi.completeness}%`} />
+          </section>
+
+          <section className="filter">
+            <label htmlFor="month">เลือกเดือน:</label>
+            <select id="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
+              <option value="all">ทั้งหมด</option>
+              {months.map((m) => (
+                <option key={m.key} value={m.key}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </section>
+
+          <MapSection data={filtered} active={active} setActive={setActive} />
+          <TableSection title="ตารางถังทั้งหมด" data={filtered} />
+          <TableSection title="ตารางถังที่ยังไม่ตรวจ" data={filtered.filter((r) => r.status === "unchecked")} />
+        </>
+      )}
+    </main>
+  );
+}
+
+function Card({ label, value }: { label: string; value: string | number }) {
+  return <article className="card"><h3>{label}</h3><strong>{value}</strong></article>;
+}
+
+function TableSection({ title, data }: { title: string; data: Extinguisher[] }) {
+  return (
+    <section>
+      <h2>{title}</h2>
+      <div className="tableWrap">
+        <table>
+          <thead><tr><th>รหัส</th><th>โซน</th><th>ตำแหน่ง</th><th>สถานะ</th><th>ผู้ตรวจ</th><th>วันที่</th></tr></thead>
+          <tbody>
+            {data.map((r) => (
+              <tr key={`${title}-${r.id}`}>
+                <td>{r.id}</td><td>{r.zone}</td><td>{r.location}</td><td>{statusText(r.status)}</td><td>{r.inspector}</td><td>{r.checkedAt}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function MapSection({ data, active, setActive }: { data: Extinguisher[]; active: Extinguisher | null; setActive: (item: Extinguisher) => void }) {
+  return (
+    <section>
+      <h2>แผนผังถังดับเพลิง</h2>
+      <div className="mapBox">
+        <img src="/maps/er-floor1.png" alt="แผนผัง ER ชั้น 1" className="map" />
+        {data.map((r) => {
+          if (r.mapX === null || r.mapY === null || Number.isNaN(r.mapX) || Number.isNaN(r.mapY)) return null;
+          return (
+            <button
+              key={`marker-${r.id}`}
+              className={`marker ${r.status} ${active?.id === r.id ? "active" : ""}`}
+              style={{ left: `${r.mapX}%`, top: `${r.mapY}%` }}
+              onClick={() => setActive(r)}
+              aria-label={`ถัง ${r.id}`}
+            />
+          );
+        })}
+      </div>
+      {active && <div className="detail">ถัง {active.id} | {active.zone} | {active.location} | {statusText(active.status)} | ผู้ตรวจ: {active.inspector} | วันที่: {active.checkedAt}</div>}
+    </section>
+  );
+}
+
+const statusText = (s: Extinguisher["status"]) => (s === "checked" ? "ตรวจแล้ว" : s === "unchecked" ? "ยังไม่ตรวจ" : "ไม่มีข้อมูล");
