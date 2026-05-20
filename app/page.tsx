@@ -14,6 +14,8 @@ type Extinguisher = {
   monthKey: string;
   mapX: number | null;
   mapY: number | null;
+  mapName: string;
+  mapImage: string;
 };
 
 const pick = (obj: Record<string, unknown>, keys: string[]) => {
@@ -41,6 +43,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("all");
+  const [selectedMap, setSelectedMap] = useState("all");
   const [active, setActive] = useState<Extinguisher | null>(null);
 
   useEffect(() => {
@@ -59,6 +62,8 @@ export default function HomePage() {
           const status = parseStatus(pick(r, ["status", "result", "สถานะ", "checked"]));
           const mapXRaw = pick(r, ["mapX", "x", "posX"]);
           const mapYRaw = pick(r, ["mapY", "y", "posY"]);
+          const mapName = String(pick(r, ["mapName", "building", "map", "แผนผัง"]) || "แผนผังหลัก");
+          const mapImage = String(pick(r, ["mapImage", "mapUrl", "image", "mapPath"]) || "/maps/er-floor1.png");
 
           return {
             id,
@@ -69,7 +74,9 @@ export default function HomePage() {
             checkedAt: date ? date.toLocaleDateString("th-TH") : "-",
             monthKey: date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}` : "unknown",
             mapX: mapXRaw === "" ? null : Number(mapXRaw),
-            mapY: mapYRaw === "" ? null : Number(mapYRaw)
+            mapY: mapYRaw === "" ? null : Number(mapYRaw),
+            mapName,
+            mapImage
           };
         });
 
@@ -93,6 +100,23 @@ export default function HomePage() {
   }, [rows]);
 
   const filtered = useMemo(() => (selectedMonth === "all" ? rows : rows.filter((r) => r.monthKey === selectedMonth)), [rows, selectedMonth]);
+  const maps = useMemo(() => Array.from(new Set(filtered.map((r) => r.mapName))).sort(), [filtered]);
+
+  const mapScoped = useMemo(
+    () => (selectedMap === "all" ? filtered : filtered.filter((r) => r.mapName === selectedMap)),
+    [filtered, selectedMap]
+  );
+
+  const selectedMapImage = useMemo(() => {
+    if (selectedMap === "all") return "/maps/er-floor1.png";
+    return mapScoped.find((r) => r.mapImage)?.mapImage || "/maps/er-floor1.png";
+  }, [mapScoped, selectedMap]);
+
+  useEffect(() => {
+    if (selectedMap !== "all" && !maps.includes(selectedMap)) {
+      setSelectedMap("all");
+    }
+  }, [maps, selectedMap]);
 
   const kpi = useMemo(() => {
     const total = filtered.length;
@@ -130,11 +154,20 @@ export default function HomePage() {
                 </option>
               ))}
             </select>
+            <label htmlFor="map">เลือกอาคาร/แผนผัง:</label>
+            <select id="map" value={selectedMap} onChange={(e) => { setSelectedMap(e.target.value); setActive(null); }}>
+              <option value="all">ทั้งหมด</option>
+              {maps.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
           </section>
 
-          <MapSection data={filtered} active={active} setActive={setActive} />
-          <TableSection title="ตารางถังทั้งหมด" data={filtered} />
-          <TableSection title="ตารางถังที่ยังไม่ตรวจ" data={filtered.filter((r) => r.status === "unchecked")} />
+          <MapSection data={mapScoped} mapImage={selectedMapImage} mapName={selectedMap} active={active} setActive={setActive} />
+          <TableSection title="ตารางถังทั้งหมด" data={mapScoped} />
+          <TableSection title="ตารางถังที่ยังไม่ตรวจ" data={mapScoped.filter((r) => r.status === "unchecked")} />
         </>
       )}
     </main>
@@ -165,12 +198,24 @@ function TableSection({ title, data }: { title: string; data: Extinguisher[] }) 
   );
 }
 
-function MapSection({ data, active, setActive }: { data: Extinguisher[]; active: Extinguisher | null; setActive: (item: Extinguisher) => void }) {
+function MapSection({
+  data,
+  mapImage,
+  mapName,
+  active,
+  setActive
+}: {
+  data: Extinguisher[];
+  mapImage: string;
+  mapName: string;
+  active: Extinguisher | null;
+  setActive: (item: Extinguisher) => void;
+}) {
   return (
     <section>
-      <h2>แผนผังถังดับเพลิง</h2>
+      <h2>แผนผังถังดับเพลิง {mapName !== "all" ? `(${mapName})` : ""}</h2>
       <div className="mapBox">
-        <img src="/maps/er-floor1.png" alt="แผนผัง ER ชั้น 1" className="map" />
+        <img src={mapImage} alt={`แผนผัง ${mapName === "all" ? "รวมทุกอาคาร" : mapName}`} className="map" />
         {data.map((r) => {
           if (r.mapX === null || r.mapY === null || Number.isNaN(r.mapX) || Number.isNaN(r.mapY)) return null;
           return (
