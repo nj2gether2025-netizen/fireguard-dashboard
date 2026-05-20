@@ -32,9 +32,10 @@ const parseDate = (value: unknown): Date | null => {
 };
 
 const parseStatus = (value: unknown): Extinguisher["status"] => {
-  const v = String(value ?? "").toLowerCase();
-  if (["checked", "ตรวจแล้ว", "done", "ok", "1", "yes", "y"].some((x) => v.includes(x))) return "checked";
-  if (["unchecked", "ยังไม่ตรวจ", "pending", "no", "0", "n"].some((x) => v.includes(x))) return "unchecked";
+  const raw = String(value ?? "").trim();
+  const v = raw.toLowerCase();
+  if (["✓", "✔", "เช็คแล้ว", "ตรวจแล้ว", "ปกติ"].includes(raw) || ["checked", "done", "ok", "1", "yes", "y"].some((x) => v.includes(x))) return "checked";
+  if (["×", "x", "X", "ยังไม่ตรวจ", "ผิดปกติ"].includes(raw) || ["unchecked", "pending", "no", "0", "n"].some((x) => v.includes(x))) return "unchecked";
   return "unknown";
 };
 
