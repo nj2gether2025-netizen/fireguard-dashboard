@@ -60,15 +60,12 @@ export default function HomePage() {
         const mapped: Extinguisher[] = raw.map((r: Record<string, unknown>, i: number) => {
           const checkedAtRaw = pick(r, ["วันที่ตรวจ", "checkedAt", "date", "timestamp", "updatedAt"]);
           const date = parseDate(checkedAtRaw);
-          const id = String(pick(r, ["รหัสถังดับเพลิง", "id"]) || "-");
-          const status = parseStatus(pick(r, ["ตรวจล่าสุด", "status", "result", "สถานะ", "checked"]));
-          const mapXRaw = pick(r, ["mapX"]);
-          const mapYRaw = pick(r, ["mapY"]);
-          const mapName = String(pick(r, ["mapName", "อาคาร"]) || "-");
-          const mapImage = String(pick(r, ["mapImage"]) || "/maps/er-floor1.png");
-          const monthlyStatus = MONTH_COLUMNS.some((m) => String(r[m] ?? "").trim() !== "")
-            ? MONTH_COLUMNS.map((m) => `${m}:${String(r[m] ?? "-")}`).join(" | ")
-            : "-";
+          const id = String(pick(r, ["id", "fireId", "ถัง", "tankId", "qr", "serial"]) || `FG-${i + 1}`);
+          const status = parseStatus(pick(r, ["status", "result", "สถานะ", "checked"]));
+          const mapXRaw = pick(r, ["mapX", "x", "posX"]);
+          const mapYRaw = pick(r, ["mapY", "y", "posY"]);
+          const mapName = String(pick(r, ["mapName", "building", "map", "แผนผัง"]) || "แผนผังหลัก");
+          const mapImage = String(pick(r, ["mapImage", "mapUrl", "image", "mapPath"]) || "/maps/er-floor1.png");
 
           return {
             id,
