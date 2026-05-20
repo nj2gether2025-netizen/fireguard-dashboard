@@ -58,9 +58,9 @@ export default function HomePage() {
         const raw = Array.isArray(json) ? json : Array.isArray(json?.data) ? json.data : [];
 
         const mapped: Extinguisher[] = raw.map((r: Record<string, unknown>, i: number) => {
-          const checkedAtRaw = pick(r, ["วันที่ตรวจ", "checkedAt", "date", "timestamp", "updatedAt"]);
+          const checkedAtRaw = pick(r, ["ตรวจล่าสุด", "วันที่ตรวจ", "checkedAt", "date", "timestamp", "updatedAt"]);
           const date = parseDate(checkedAtRaw);
-          const id = String(pick(r, ["id", "fireId", "ถัง", "tankId", "qr", "serial"]) || `FG-${i + 1}`);
+          const id = String(pick(r, ["รหัสถังดับเพลิง", "id", "fireId", "ถัง", "tankId", "qr", "serial"]);
           const status = parseStatus(pick(r, ["status", "result", "สถานะ", "checked"]));
           const mapXRaw = pick(r, ["mapX", "x", "posX"]);
           const mapYRaw = pick(r, ["mapY", "y", "posY"]);
