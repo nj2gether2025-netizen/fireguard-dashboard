@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 const API_URL =
-  "https://script.google.com/macros/s/AKfycbyykPLFJX4QlL--C3-E-F0Ji-lt516M7UB2BtTRv05G2ttkf7jt-QpDSqEw2A9fwjlUXQ/exec";
+  "https://script.google.com/macros/s/AKfycbyrdGnZs18Ur6Cxf0nnC2TsRCZ1C1FmK1aVB8Dx-Kr0mGB90s4ZmCIBavldIRaHBt7OoQ/exec";
 type Extinguisher = {
   id: string;
   location: string;
