@@ -18,6 +18,8 @@ type Extinguisher = {
   mapImage: string;
 };
 
+const MONTH_COLUMNS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+
 const pick = (obj: Record<string, unknown>, keys: string[]) => {
   const found = keys.find((k) => obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== "");
   return found ? obj[found] : "";
@@ -56,7 +58,7 @@ export default function HomePage() {
         const raw = Array.isArray(json) ? json : Array.isArray(json?.data) ? json.data : [];
 
         const mapped: Extinguisher[] = raw.map((r: Record<string, unknown>, i: number) => {
-          const checkedAtRaw = pick(r, ["checkedAt", "date", "วันที่ตรวจ", "timestamp", "updatedAt"]);
+          const checkedAtRaw = pick(r, ["วันที่ตรวจ", "checkedAt", "date", "timestamp", "updatedAt"]);
           const date = parseDate(checkedAtRaw);
           const id = String(pick(r, ["id", "fireId", "ถัง", "tankId", "qr", "serial"]) || `FG-${i + 1}`);
           const status = parseStatus(pick(r, ["status", "result", "สถานะ", "checked"]));
@@ -67,11 +69,11 @@ export default function HomePage() {
 
           return {
             id,
-            location: String(pick(r, ["location", "ตำแหน่ง", "point", "spot"]) || "ไม่ระบุ"),
-            zone: String(pick(r, ["zone", "area", "แผนก", "unit"]) || "ไม่ระบุ"),
+            location: String(pick(r, ["จุดติดตั้ง", "location", "ตำแหน่ง"]) || "-"),
+            zone: String(pick(r, ["อาคาร", "zone", "area"]) || "-"),
             inspector: String(pick(r, ["inspector", "ผู้ตรวจ", "checker", "name"]) || "ไม่ระบุ"),
-            status,
-            checkedAt: date ? date.toLocaleDateString("th-TH") : "-",
+            status: monthlyStatus === "-" ? status : parseStatus(monthlyStatus),
+            checkedAt: monthlyStatus,
             monthKey: date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}` : "unknown",
             mapX: mapXRaw === "" ? null : Number(mapXRaw),
             mapY: mapYRaw === "" ? null : Number(mapYRaw),
