@@ -44,7 +44,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("all");
-  const [selectedMap, setSelectedMap] = useState("all");
+  const [selectedMap, setSelectedMap] = useState("all"); // ใช้เป็นตัวกรองแผนผัง/อาคาร
   const [active, setActive] = useState<Extinguisher | null>(null);
 
   useEffect(() => {
@@ -63,7 +63,7 @@ export default function HomePage() {
           const status = parseStatus(pick(r, ["status", "result", "สถานะ", "checked"]));
           const mapXRaw = pick(r, ["mapX", "x", "posX"]);
           const mapYRaw = pick(r, ["mapY", "y", "posY"]);
-          const mapName = String(pick(r, ["mapName", "ชื่อแผนผัง", "building", "map"]) || "ไม่ระบุแผนผัง");
+          const mapName = String(pick(r, ["mapName", "buildingName", "อาคาร", "ชื่อแผนผัง", "building", "map"]) || "ไม่ระบุแผนผัง");
           const mapImage = String(pick(r, ["mapImage", "รูปแผนผัง", "mapPath", "image"]) || "");
 
           return {
@@ -178,7 +178,7 @@ export default function HomePage() {
               </select>
             </div>
             <div>
-              <label htmlFor="map">เลือกแผนผัง/อาคาร:</label>
+              <label htmlFor="map">เลือกอาคาร/แผนผัง:</label>
               <select id="map" value={selectedMap} onChange={(e) => { setSelectedMap(e.target.value); setActive(null); }}>
                 <option value="all">ทั้งหมด</option>
                 {maps.map((m) => (
