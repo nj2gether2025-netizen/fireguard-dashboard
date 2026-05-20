@@ -106,6 +106,15 @@ export default function HomePage() {
   }, [rows]);
 
   const monthFiltered = useMemo(() => (selectedMonth === "all" ? rows : rows.filter((r) => r.monthKey === selectedMonth)), [rows, selectedMonth]);
+  useEffect(() => {
+    if (selectedMap === "all") return;
+    const stillExists = monthFiltered.some((r) => r.mapName === selectedMap);
+    if (!stillExists) {
+      setSelectedMap("all");
+      setActive(null);
+    }
+  }, [monthFiltered, selectedMap]);
+
   const selectedMapRows = useMemo(
     () => (selectedMap === "all" ? [] : monthFiltered.filter((r) => r.mapName === selectedMap)),
     [monthFiltered, selectedMap]
