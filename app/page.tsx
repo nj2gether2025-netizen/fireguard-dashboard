@@ -66,7 +66,8 @@ export default function HomePage() {
           const mapYRaw = pick(r, ["mapY", "y", "posY"]);
           const mapName = String(pick(r, ["mapName", "building", "map", "แผนผัง"]) || "แผนผังหลัก");
           const mapImage = String(pick(r, ["mapImage", "mapUrl", "image", "mapPath"]) || "/maps/er-floor1.png");
-
+const monthlyStatus =
+  MONTH_COLUMNS.find((m) => String(r[m] ?? "").trim() !== "") || "-";
           return {
             id,
             location: String(pick(r, ["จุดติดตั้ง", "location", "ตำแหน่ง"]) || "-"),
