@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const API_URL = "/api/fireguard";
+const API_URL =
+  "https://script.google.com/macros/s/AKfycbyrdGnZs18Ur6Cxf0nnC2TsRCZ1C1FmK1aVB8Dx-Kr0mGB90s4ZmCIBavldIRaHBt7OoQ/exec";
 type Extinguisher = {
   id: string;
   location: string;
@@ -15,13 +16,9 @@ type Extinguisher = {
   mapY: number | null;
   mapName: string;
   mapImage: string;
-  latestStatusRaw: string;
-  monthlyStatusRaw: Record<string, string>;
 };
 
 const MONTH_COLUMNS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
-const MAP_FLOOR_1 = "อาคารอุบัติเหตุ ชั้น 1";
-const MAP_FLOOR_2 = "อาคารอุบัติเหตุ ชั้น 2";
 
 const pick = (obj: Record<string, unknown>, keys: string[]) => {
   const found = keys.find((k) => obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== "");
@@ -37,8 +34,8 @@ const parseDate = (value: unknown): Date | null => {
 const parseStatus = (value: unknown): Extinguisher["status"] => {
   const raw = String(value ?? "").trim();
   const v = raw.toLowerCase();
-  if (["×", "x", "X", "ยังไม่ตรวจ"].includes(raw) || ["unchecked", "pending", "no", "0", "n"].some((x) => v.includes(x))) return "unchecked";
-  if (["✓", "✔", "ตรวจแล้ว", "ปกติ"].includes(raw) || ["checked", "done", "ok", "1", "yes", "y"].some((x) => v.includes(x))) return "checked";
+  if (["✓", "✔", "เช็คแล้ว", "ตรวจแล้ว", "ปกติ"].includes(raw) || ["checked", "done", "ok", "1", "yes", "y"].some((x) => v.includes(x))) return "checked";
+  if (["×", "x", "X", "ยังไม่ตรวจ", "ผิดปกติ"].includes(raw) || ["unchecked", "pending", "no", "0", "n"].some((x) => v.includes(x))) return "unchecked";
   return "unknown";
 };
 
@@ -61,40 +58,29 @@ export default function HomePage() {
         const json = await res.json();
         const raw = Array.isArray(json) ? json : Array.isArray(json?.data) ? json.data : [];
 
-        if (raw.length > 0 && !raw.some((r: Record<string, unknown>) => Object.prototype.hasOwnProperty.call(r, "รหัสถังดับเพลิง"))) {
-          console.error('API response is missing required column: "รหัสถังดับเพลิง"');
-          setError('ไม่พบคอลัมน์ "รหัสถังดับเพลิง" ในข้อมูล API');
-        }
-
-        const mapped: Extinguisher[] = raw.map((r: Record<string, unknown>) => {
-          const checkedAtRaw = pick(r, ["วันที่ตรวจ", "checkedAt", "date", "timestamp", "updatedAt"]);
+        const mapped: Extinguisher[] = raw.map((r: Record<string, unknown>, i: number) => {
+          const checkedAtRaw = pick(r, ["ตรวจล่าสุด", "วันที่ตรวจ", "checkedAt", "date", "timestamp", "updatedAt"]);
           const date = parseDate(checkedAtRaw);
-          const id = String(pick(r, ["รหัสถังดับเพลิง", "mapId"]) || "-");
-          const latestStatusRaw = String(pick(r, ["ตรวจล่าสุด"]) || "");
-          const monthlyStatusRaw = Object.fromEntries(MONTH_COLUMNS.map((m) => [m, String(r[m] ?? "").trim()]));
-          const mapXRaw = pick(r, ["mapX"]);
-          const mapYRaw = pick(r, ["mapY"]);
-          const mapName = String(pick(r, ["mapName", "อาคาร"]) || "-");
-          const mapImageRaw = String(pick(r, ["mapImage"]) || "");
-          const mapImage = mapName === MAP_FLOOR_2 ? "/maps/er-floor2.png" : (mapImageRaw || "/maps/er-floor1.png");
-          const monthlyColumn = MONTH_COLUMNS.find((m) => String(r[m] ?? "").trim() !== "");
-          const monthlyValue = monthlyColumn ? String(r[monthlyColumn] ?? "").trim() : "";
-          const status = parseStatus(latestStatusRaw);
-
+          const id = String(pick(r, ["รหัสถังดับเพลิง", "id", "fireId", "ถัง", "tankId", "qr", "serial"]) || `FG-${i + 1}`);
+          const status = parseStatus(pick(r, ["status", "result", "สถานะ", "checked"]));
+          const mapXRaw = pick(r, ["mapX", "x", "posX"]);
+          const mapYRaw = pick(r, ["mapY", "y", "posY"]);
+          const mapName = String(pick(r, ["mapName", "building", "map", "แผนผัง"]) || "แผนผังหลัก");
+          const mapImage = String(pick(r, ["mapImage", "mapUrl", "image", "mapPath"]) || "/maps/er-floor1.png");
+const monthlyStatus =
+  MONTH_COLUMNS.find((m) => String(r[m] ?? "").trim() !== "") || "-";
           return {
             id,
-            location: String(pick(r, ["จุดติดตั้ง"]) || "-"),
-            zone: String(pick(r, ["อาคาร"]) || "-"),
+            location: String(pick(r, ["จุดติดตั้ง", "location", "ตำแหน่ง"]) || "-"),
+            zone: String(pick(r, ["อาคาร", "zone", "area"]) || "-"),
             inspector: String(pick(r, ["inspector", "ผู้ตรวจ", "checker", "name"]) || "ไม่ระบุ"),
-            status: monthlyValue ? parseStatus(monthlyValue) : status,
-            checkedAt: monthlyColumn || "-",
+            status: monthlyStatus === "-" ? status : parseStatus(monthlyStatus),
+            checkedAt: monthlyStatus,
             monthKey: date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}` : "unknown",
             mapX: mapXRaw === "" ? null : Number(mapXRaw),
             mapY: mapYRaw === "" ? null : Number(mapYRaw),
             mapName,
-            mapImage,
-            latestStatusRaw,
-            monthlyStatusRaw
+            mapImage
           };
         });
 
@@ -117,35 +103,16 @@ export default function HomePage() {
     });
   }, [rows]);
 
-  const filtered = useMemo(() => {
-    const pickStatusForRow = (r: Extinguisher): Extinguisher => {
-      if (selectedMonth === "all") {
-        const latest = String(r.latestStatusRaw || "").trim();
-        return { ...r, status: parseStatus(latest), checkedAt: "ตรวจล่าสุด" };
-      }
-      const mm = Number(selectedMonth.split("-")[1] || 0);
-      const monthLabel = MONTH_COLUMNS[mm - 1];
-      const monthValue = monthLabel ? r.monthlyStatusRaw[monthLabel] : "";
-      const status = parseStatus(monthValue || r.latestStatusRaw);
-      return { ...r, status, checkedAt: monthLabel || "ตรวจล่าสุด" };
-    };
-    const base = selectedMonth === "all" ? rows : rows.filter((r) => r.monthKey === selectedMonth);
-    return base.map(pickStatusForRow);
-  }, [rows, selectedMonth]);
-  const maps = useMemo(() => [MAP_FLOOR_1, MAP_FLOOR_2], []);
+  const filtered = useMemo(() => (selectedMonth === "all" ? rows : rows.filter((r) => r.monthKey === selectedMonth)), [rows, selectedMonth]);
+  const maps = useMemo(() => Array.from(new Set(filtered.map((r) => r.mapName))).sort(), [filtered]);
 
-  const mapScoped = useMemo(() => {
-    const byMap = selectedMap === "all" ? filtered : filtered.filter((r) => r.mapName === selectedMap);
-    if (selectedMap === MAP_FLOOR_2) {
-      return byMap.filter((r) => /^ER2-0[1-6]$/.test(r.id));
-    }
-    return byMap;
-  }, [filtered, selectedMap]);
-  const uncheckedRows = useMemo(() => mapScoped.filter((r) => r.status === "unchecked"), [mapScoped]);
+  const mapScoped = useMemo(
+    () => (selectedMap === "all" ? filtered : filtered.filter((r) => r.mapName === selectedMap)),
+    [filtered, selectedMap]
+  );
 
   const selectedMapImage = useMemo(() => {
-    if (selectedMap === MAP_FLOOR_2) return "/maps/er-floor2.png";
-    if (selectedMap === MAP_FLOOR_1 || selectedMap === "all") return "/maps/er-floor1.png";
+    if (selectedMap === "all") return "/maps/er-floor1.png";
     return mapScoped.find((r) => r.mapImage)?.mapImage || "/maps/er-floor1.png";
   }, [mapScoped, selectedMap]);
 
@@ -204,7 +171,7 @@ export default function HomePage() {
 
           <MapSection data={mapScoped} mapImage={selectedMapImage} mapName={selectedMap} active={active} setActive={setActive} />
           <TableSection title="ตารางถังทั้งหมด" data={mapScoped} />
-          <TableSection title="ตารางถังที่ยังไม่ตรวจ" data={uncheckedRows} />
+          <TableSection title="ตารางถังที่ยังไม่ตรวจ" data={mapScoped.filter((r) => r.status === "unchecked")} />
         </>
       )}
     </main>
