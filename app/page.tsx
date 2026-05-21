@@ -9,7 +9,7 @@ type Extinguisher = {
   location: string;
   zone: string;
   inspector: string;
-  status: "checked" | "unchecked" | "unknown";
+  status: "checked" | "unchecked" | "warning" | "danger" | "unknown";
   checkedAt: string;
   monthKey: string;
   mapX: number | null;
@@ -125,7 +125,7 @@ const monthlyStatus =
   const kpi = useMemo(() => {
     const total = filtered.length;
     const checked = filtered.filter((r) => r.status === "checked").length;
-    const unchecked = filtered.filter((r) => r.status === "unchecked").length;
+    const unchecked = filtered.filter((r) => ["unchecked", "warning", "danger"].includes(r.status)).length;
     const completeness = total ? Math.round((checked / total) * 100) : 0;
     return { total, checked, unchecked, completeness };
   }, [filtered]);
@@ -238,4 +238,6 @@ function MapSection({
   );
 }
 
-const statusText = (s: Extinguisher["status"]) => (s === "checked" ? "ตรวจแล้ว" : s === "unchecked" ? "ยังไม่ตรวจ" : "ไม่มีข้อมูล");
+const statusText = (s: Extinguisher["status"]) => (
+  s === "checked" ? "ตรวจแล้ว" : s === "warning" ? "ใกล้ตรวจสอบ" : s === "danger" || s === "unchecked" ? "ยังไม่ตรวจ" : "ไม่มีข้อมูล"
+);
