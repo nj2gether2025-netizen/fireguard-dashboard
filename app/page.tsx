@@ -3,14 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 
 const API_URL =
-  "https://script.google.com/macros/s/AKfycbyykPLFJX4QlL--C3-E-F0Ji-lt516M7UB2BtTRv05G2ttkf7jt-QpDSqEw2A9fwjlUXQ/exec";
-
+  "https://script.google.com/macros/s/AKfycbyrdGnZs18Ur6Cxf0nnC2TsRCZ1C1FmK1aVB8Dx-Kr0mGB90s4ZmCIBavldIRaHBt7OoQ/exec";
 type Extinguisher = {
-  fireCode: string;
+  id: string;
   location: string;
   zone: string;
   inspector: string;
-  status: "checked" | "unchecked" | "unknown";
+  status: "checked" | "unchecked" | "warning" | "danger" | "unknown";
   checkedAt: string;
   monthKey: string;
   mapX: number | null;
@@ -18,6 +17,8 @@ type Extinguisher = {
   mapName: string;
   mapImage: string;
 };
+
+const MONTH_COLUMNS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 
 const pick = (obj: Record<string, unknown>, keys: string[]) => {
   const found = keys.find((k) => obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== "");
@@ -31,9 +32,10 @@ const parseDate = (value: unknown): Date | null => {
 };
 
 const parseStatus = (value: unknown): Extinguisher["status"] => {
-  const v = String(value ?? "").toLowerCase();
-  if (["checked", "ตรวจแล้ว", "done", "ok", "1", "yes", "y"].some((x) => v.includes(x))) return "checked";
-  if (["unchecked", "ยังไม่ตรวจ", "pending", "no", "0", "n"].some((x) => v.includes(x))) return "unchecked";
+  const raw = String(value ?? "").trim();
+  const v = raw.toLowerCase();
+  if (["✓", "✔", "เช็คแล้ว", "ตรวจแล้ว", "ปกติ"].includes(raw) || ["checked", "done", "ok", "1", "yes", "y"].some((x) => v.includes(x))) return "checked";
+  if (["×", "x", "X", "ยังไม่ตรวจ", "ผิดปกติ"].includes(raw) || ["unchecked", "pending", "no", "0", "n"].some((x) => v.includes(x))) return "unchecked";
   return "unknown";
 };
 
@@ -44,7 +46,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("all");
-  const [selectedMap, setSelectedMap] = useState("all"); // ใช้เป็นตัวกรองแผนผัง/อาคาร
+  const [selectedMap, setSelectedMap] = useState("all");
   const [active, setActive] = useState<Extinguisher | null>(null);
 
   useEffect(() => {
@@ -57,22 +59,23 @@ export default function HomePage() {
         const raw = Array.isArray(json) ? json : Array.isArray(json?.data) ? json.data : [];
 
         const mapped: Extinguisher[] = raw.map((r: Record<string, unknown>, i: number) => {
-          const checkedAtRaw = pick(r, ["checkedAt", "date", "วันที่ตรวจ", "timestamp", "updatedAt"]);
+          const checkedAtRaw = pick(r, ["ตรวจล่าสุด", "วันที่ตรวจ", "checkedAt", "date", "timestamp", "updatedAt"]);
           const date = parseDate(checkedAtRaw);
-          const fireCode = String(pick(r, ["รหัสถังดับเพลิง", "fireCode", "id", "fireId", "tankId", "qr", "serial"]) || `ไม่พบรหัส-${i + 1}`);
+          const id = String(pick(r, ["รหัสถังดับเพลิง", "id", "fireId", "ถัง", "tankId", "qr", "serial"]) || `FG-${i + 1}`);
           const status = parseStatus(pick(r, ["status", "result", "สถานะ", "checked"]));
           const mapXRaw = pick(r, ["mapX", "x", "posX"]);
           const mapYRaw = pick(r, ["mapY", "y", "posY"]);
-          const mapName = String(pick(r, ["mapName", "buildingName", "อาคาร", "ชื่อแผนผัง", "building", "map"]) || "ไม่ระบุแผนผัง");
-          const mapImage = String(pick(r, ["mapImage", "รูปแผนผัง", "mapPath", "image"]) || "");
-
+          const mapName = String(pick(r, ["mapName", "building", "map", "แผนผัง"]) || "แผนผังหลัก");
+          const mapImage = String(pick(r, ["mapImage", "mapUrl", "image", "mapPath"]) || "/maps/er-floor1.png");
+const monthlyStatus =
+  MONTH_COLUMNS.find((m) => String(r[m] ?? "").trim() !== "") || "-";
           return {
-            fireCode,
-            location: String(pick(r, ["location", "ตำแหน่ง", "point", "spot"]) || "ไม่ระบุ"),
-            zone: String(pick(r, ["zone", "area", "แผนก", "unit"]) || "ไม่ระบุ"),
+            id,
+            location: String(pick(r, ["จุดติดตั้ง", "location", "ตำแหน่ง"]) || "-"),
+            zone: String(pick(r, ["อาคาร", "zone", "area"]) || "-"),
             inspector: String(pick(r, ["inspector", "ผู้ตรวจ", "checker", "name"]) || "ไม่ระบุ"),
-            status,
-            checkedAt: date ? date.toLocaleDateString("th-TH") : "-",
+            status: monthlyStatus === "-" ? status : parseStatus(monthlyStatus),
+            checkedAt: monthlyStatus,
             monthKey: date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}` : "unknown",
             mapX: mapXRaw === "" ? null : Number(mapXRaw),
             mapY: mapYRaw === "" ? null : Number(mapYRaw),
@@ -100,46 +103,32 @@ export default function HomePage() {
     });
   }, [rows]);
 
-  const maps = useMemo(() => {
-    const unique = Array.from(new Set(rows.map((r) => r.mapName).filter(Boolean))).sort((a, b) => a.localeCompare(b, "th"));
-    return unique;
-  }, [rows]);
+  const filtered = useMemo(() => (selectedMonth === "all" ? rows : rows.filter((r) => r.monthKey === selectedMonth)), [rows, selectedMonth]);
+  const maps = useMemo(() => Array.from(new Set(filtered.map((r) => r.mapName))).sort(), [filtered]);
 
-  const monthFiltered = useMemo(() => (selectedMonth === "all" ? rows : rows.filter((r) => r.monthKey === selectedMonth)), [rows, selectedMonth]);
-  useEffect(() => {
-    if (selectedMap === "all") return;
-    const stillExists = monthFiltered.some((r) => r.mapName === selectedMap);
-    if (!stillExists) {
-      setSelectedMap("all");
-      setActive(null);
-    }
-  }, [monthFiltered, selectedMap]);
-
-  const selectedMapRows = useMemo(
-    () => (selectedMap === "all" ? [] : monthFiltered.filter((r) => r.mapName === selectedMap)),
-    [monthFiltered, selectedMap]
+  const mapScoped = useMemo(
+    () => (selectedMap === "all" ? filtered : filtered.filter((r) => r.mapName === selectedMap)),
+    [filtered, selectedMap]
   );
 
   const selectedMapImage = useMemo(() => {
-    if (selectedMap === "all") return "";
-    const row = selectedMapRows.find((r) => r.mapImage.trim() !== "");
-    return row?.mapImage || "";
-  }, [selectedMap, selectedMapRows]);
+    if (selectedMap === "all") return "/maps/er-floor1.png";
+    return mapScoped.find((r) => r.mapImage)?.mapImage || "/maps/er-floor1.png";
+  }, [mapScoped, selectedMap]);
 
-  const kpiAll = useMemo(() => {
-    const total = rows.length;
-    const checked = rows.filter((r) => r.status === "checked").length;
-    const unchecked = rows.filter((r) => r.status === "unchecked").length;
+  useEffect(() => {
+    if (selectedMap !== "all" && !maps.includes(selectedMap)) {
+      setSelectedMap("all");
+    }
+  }, [maps, selectedMap]);
+
+  const kpi = useMemo(() => {
+    const total = filtered.length;
+    const checked = filtered.filter((r) => r.status === "checked").length;
+    const unchecked = filtered.filter((r) => ["unchecked", "warning", "danger"].includes(r.status)).length;
     const completeness = total ? Math.round((checked / total) * 100) : 0;
     return { total, checked, unchecked, completeness };
-  }, [rows]);
-
-  const kpiMap = useMemo(() => {
-    const total = selectedMapRows.length;
-    const checked = selectedMapRows.filter((r) => r.status === "checked").length;
-    const unchecked = selectedMapRows.filter((r) => r.status === "unchecked").length;
-    return { total, checked, unchecked };
-  }, [selectedMapRows]);
+  }, [filtered]);
 
   return (
     <main className="container">
@@ -153,44 +142,36 @@ export default function HomePage() {
       {!loading && !error && (
         <>
           <section className="kpis">
-            <Card label="ถังทั้งหมด (ภาพรวม)" value={kpiAll.total} />
-            <Card label="ตรวจแล้ว (ภาพรวม)" value={kpiAll.checked} />
-            <Card label="ยังไม่ตรวจ (ภาพรวม)" value={kpiAll.unchecked} />
-            <Card label="ความครบถ้วน (ภาพรวม)" value={`${kpiAll.completeness}%`} />
+            <Card label="ถังทั้งหมด" value={kpi.total} />
+            <Card label="ตรวจแล้ว" value={kpi.checked} />
+            <Card label="ยังไม่ตรวจ" value={kpi.unchecked} />
+            <Card label="ความครบถ้วน" value={`${kpi.completeness}%`} />
           </section>
 
-          <section className="kpis mapKpis">
-            <Card label="ถังในแผนผังนี้" value={selectedMap === "all" ? "-" : kpiMap.total} />
-            <Card label="ตรวจแล้ว (แผนผังนี้)" value={selectedMap === "all" ? "-" : kpiMap.checked} />
-            <Card label="ยังไม่ตรวจ (แผนผังนี้)" value={selectedMap === "all" ? "-" : kpiMap.unchecked} />
+          <section className="filter">
+            <label htmlFor="month">เลือกเดือน:</label>
+            <select id="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
+              <option value="all">ทั้งหมด</option>
+              {months.map((m) => (
+                <option key={m.key} value={m.key}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+            <label htmlFor="map">เลือกอาคาร/แผนผัง:</label>
+            <select id="map" value={selectedMap} onChange={(e) => { setSelectedMap(e.target.value); setActive(null); }}>
+              <option value="all">ทั้งหมด</option>
+              {maps.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
           </section>
 
-          <section className="filter filterWrap">
-            <div>
-              <label htmlFor="month">เลือกเดือน:</label>
-              <select id="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
-                <option value="all">ทั้งหมด</option>
-                {months.map((m) => (
-                  <option key={m.key} value={m.key}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="map">เลือกอาคาร/แผนผัง:</label>
-              <select id="map" value={selectedMap} onChange={(e) => { setSelectedMap(e.target.value); setActive(null); }}>
-                <option value="all">ทั้งหมด</option>
-                {maps.map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
-            </div>
-          </section>
-
-          <MapSection selectedMap={selectedMap} mapImage={selectedMapImage} data={selectedMapRows} active={active} setActive={setActive} />
-          <TableSection title="ตารางถังทั้งหมด" data={monthFiltered} />
-          <TableSection title="ตารางถังที่ยังไม่ตรวจ" data={monthFiltered.filter((r) => r.status === "unchecked")} />
+          <MapSection data={mapScoped} mapImage={selectedMapImage} mapName={selectedMap} active={active} setActive={setActive} />
+          <TableSection title="ตารางถังทั้งหมด" data={mapScoped} />
+          <TableSection title="ตารางถังที่ยังไม่ตรวจ" data={mapScoped.filter((r) => r.status === "unchecked")} />
         </>
       )}
     </main>
@@ -207,11 +188,11 @@ function TableSection({ title, data }: { title: string; data: Extinguisher[] }) 
       <h2>{title}</h2>
       <div className="tableWrap">
         <table>
-          <thead><tr><th>รหัสถังดับเพลิง</th><th>แผนผัง</th><th>โซน</th><th>ตำแหน่ง</th><th>สถานะ</th><th>ผู้ตรวจ</th><th>วันที่</th></tr></thead>
+          <thead><tr><th>รหัส</th><th>โซน</th><th>ตำแหน่ง</th><th>สถานะ</th><th>ผู้ตรวจ</th><th>วันที่</th></tr></thead>
           <tbody>
-            {data.map((r, idx) => (
-              <tr key={`${title}-${r.fireCode}-${idx}`}>
-                <td>{r.fireCode}</td><td>{r.mapName}</td><td>{r.zone}</td><td>{r.location}</td><td>{statusText(r.status)}</td><td>{r.inspector}</td><td>{r.checkedAt}</td>
+            {data.map((r) => (
+              <tr key={`${title}-${r.id}`}>
+                <td>{r.id}</td><td>{r.zone}</td><td>{r.location}</td><td>{statusText(r.status)}</td><td>{r.inspector}</td><td>{r.checkedAt}</td>
               </tr>
             ))}
           </tbody>
@@ -221,36 +202,42 @@ function TableSection({ title, data }: { title: string; data: Extinguisher[] }) 
   );
 }
 
-function MapSection({ selectedMap, mapImage, data, active, setActive }: { selectedMap: string; mapImage: string; data: Extinguisher[]; active: Extinguisher | null; setActive: (item: Extinguisher) => void }) {
-  if (selectedMap === "all") {
-    return <section><h2>แผนผังถังดับเพลิง</h2><p>กรุณาเลือกแผนผัง/อาคารก่อนเพื่อแสดงรูปแผนผังและ marker</p></section>;
-  }
-
-  if (!mapImage) {
-    return <section><h2>แผนผังถังดับเพลิง</h2><p>ไม่พบไฟล์รูปสำหรับแผนผังที่เลือก</p></section>;
-  }
-
+function MapSection({
+  data,
+  mapImage,
+  mapName,
+  active,
+  setActive
+}: {
+  data: Extinguisher[];
+  mapImage: string;
+  mapName: string;
+  active: Extinguisher | null;
+  setActive: (item: Extinguisher) => void;
+}) {
   return (
     <section>
-      <h2>แผนผังถังดับเพลิง: {selectedMap}</h2>
+      <h2>แผนผังถังดับเพลิง {mapName !== "all" ? `(${mapName})` : ""}</h2>
       <div className="mapBox">
-        <img src={mapImage} alt={`แผนผัง ${selectedMap}`} className="map" />
-        {data.map((r, idx) => {
+        <img src={mapImage} alt={`แผนผัง ${mapName === "all" ? "รวมทุกอาคาร" : mapName}`} className="map" />
+        {data.map((r) => {
           if (r.mapX === null || r.mapY === null || Number.isNaN(r.mapX) || Number.isNaN(r.mapY)) return null;
           return (
             <button
-              key={`marker-${r.fireCode}-${idx}`}
-              className={`marker ${r.status} ${active?.fireCode === r.fireCode ? "active" : ""}`}
+              key={`marker-${r.id}`}
+              className={`marker ${r.status} ${active?.id === r.id ? "active" : ""}`}
               style={{ left: `${r.mapX}%`, top: `${r.mapY}%` }}
               onClick={() => setActive(r)}
-              aria-label={`ถัง ${r.fireCode}`}
+              aria-label={`ถัง ${r.id}`}
             />
           );
         })}
       </div>
-      {active && <div className="detail">ถัง {active.fireCode} | {active.zone} | {active.location} | {statusText(active.status)} | ผู้ตรวจ: {active.inspector} | วันที่: {active.checkedAt}</div>}
+      {active && <div className="detail">ถัง {active.id} | {active.zone} | {active.location} | {statusText(active.status)} | ผู้ตรวจ: {active.inspector} | วันที่: {active.checkedAt}</div>}
     </section>
   );
 }
 
-const statusText = (s: Extinguisher["status"]) => (s === "checked" ? "ตรวจแล้ว" : s === "unchecked" ? "ยังไม่ตรวจ" : "ไม่มีข้อมูล");
+const statusText = (s: Extinguisher["status"]) => (
+  s === "checked" ? "ตรวจแล้ว" : s === "warning" ? "ใกล้ตรวจสอบ" : s === "danger" || s === "unchecked" ? "ยังไม่ตรวจ" : "ไม่มีข้อมูล"
+);

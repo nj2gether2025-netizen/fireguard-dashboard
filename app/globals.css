@@ -21,7 +21,3 @@ select { padding: 8px; border-radius: 8px; border: 1px solid #7ac78f; }
 table { width: 100%; border-collapse: collapse; }
 th, td { border-bottom: 1px solid #e4f2e8; padding: 8px; text-align: left; white-space: nowrap; }
 .error { color: #c31717; background: #ffe6e6; padding: 8px; border-radius: 8px; }
-
-.filterWrap { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 12px; }
-.filterWrap > div { display: grid; gap: 6px; }
-.mapKpis { margin-top: 0; }
