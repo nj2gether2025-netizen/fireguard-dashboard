@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { type MouseEvent, useEffect, useMemo, useState } from "react";
 
 const API_URL = "/api/fireguard";
 type Extinguisher = {
@@ -230,6 +230,16 @@ function MapSection({
   active: Extinguisher | null;
   setActive: (item: Extinguisher) => void;
 }) {
+  const [coordinate, setCoordinate] = useState<{ mapX: number; mapY: number } | null>(null);
+
+  const readMapCoordinate = (event: MouseEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const mapX = ((event.clientX - rect.left) / rect.width) * 100;
+    const mapY = ((event.clientY - rect.top) / rect.height) * 100;
+
+    setCoordinate({ mapX, mapY });
+  };
+
   if (mapName === "all") {
     return (
       <section>
@@ -242,8 +252,9 @@ function MapSection({
   return (
     <section>
       <h2>แผนผังถังดับเพลิง {mapName !== "all" ? `(${mapName})` : ""}</h2>
+      <p className="mapHint">คลิกบนแผนผังเพื่อดูค่า mapX/mapY แล้วนำไปใส่ Google Sheet</p>
       <div className="mapBox">
-        <div className="mapStage">
+        <div className="mapStage" onClick={readMapCoordinate}>
           <img src={mapImage} alt={`แผนผัง ${mapName === "all" ? "รวมทุกอาคาร" : mapName}`} className="map" />
           <div className="markerLayer">
             {data.map((r) => {
@@ -261,6 +272,13 @@ function MapSection({
           </div>
         </div>
       </div>
+      {coordinate && (
+        <div className="coordinateBox">
+          {active && <p>กำลังปรับ: รหัสถัง {active.id}</p>}
+          <p>mapX: {coordinate.mapX.toFixed(2)}</p>
+          <p>mapY: {coordinate.mapY.toFixed(2)}</p>
+        </div>
+      )}
       {active && <div className="detail">ถัง {active.id} | {active.zone} | {active.location} | {statusText(active.status)} | ผู้ตรวจ: {active.inspector} | วันที่: {active.checkedAt}</div>}
     </section>
   );
