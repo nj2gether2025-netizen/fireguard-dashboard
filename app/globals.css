@@ -9,9 +9,11 @@ h1 { margin: 0; color: #0b7a2a; }
 .card strong { font-size: 1.5rem; color: #0d8a30; }
 .filter { display: flex; gap: 8px; align-items: center; margin: 12px 0; }
 select { padding: 8px; border-radius: 8px; border: 1px solid #7ac78f; }
-.mapBox { position: relative; border: 1px solid #b9e9c4; border-radius: 12px; overflow: hidden; background: white; }
+.mapBox { border: 1px solid #b9e9c4; border-radius: 12px; overflow: hidden; background: white; }
+.mapStage { position: relative; line-height: 0; }
 .map { width: 100%; height: auto; display: block; }
-.marker { position: absolute; width: 14px; height: 14px; border-radius: 999px; border: 2px solid white; transform: translate(-50%, -50%); cursor: pointer; }
+.markerLayer { position: absolute; inset: 0; }
+.marker { position: absolute; width: 14px; height: 14px; padding: 0; border-radius: 999px; border: 2px solid white; transform: translate(-50%, -50%); cursor: pointer; }
 .marker.checked { background: #18a43b; }
 .marker.unchecked { background: #d71c1c; }
 .marker.unknown { background: #7d7d7d; }

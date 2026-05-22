@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const API_URL =
-  "https://script.google.com/macros/s/AKfycbyrdGnZs18Ur6Cxf0nnC2TsRCZ1C1FmK1aVB8Dx-Kr0mGB90s4ZmCIBavldIRaHBt7OoQ/exec";
+const API_URL = "/api/fireguard";
 type Extinguisher = {
   id: string;
   location: string;
@@ -11,7 +10,7 @@ type Extinguisher = {
   inspector: string;
   status: "checked" | "unchecked" | "warning" | "danger" | "unknown";
   checkedAt: string;
-  monthKey: string;
+  monthlyStatuses: Record<string, unknown>;
   mapX: number | null;
   mapY: number | null;
   mapName: string;
@@ -25,21 +24,40 @@ const pick = (obj: Record<string, unknown>, keys: string[]) => {
   return found ? obj[found] : "";
 };
 
-const parseDate = (value: unknown): Date | null => {
-  if (!value) return null;
-  const d = new Date(String(value));
-  return Number.isNaN(d.getTime()) ? null : d;
+const getRecords = (payload: unknown): Record<string, unknown>[] => {
+  if (Array.isArray(payload)) return payload as Record<string, unknown>[];
+
+  if (payload && typeof payload === "object") {
+    const response = payload as Record<string, unknown>;
+    if (Array.isArray(response.data)) return response.data as Record<string, unknown>[];
+    if (Array.isArray(response.value)) return response.value as Record<string, unknown>[];
+  }
+
+  return [];
 };
 
 const parseStatus = (value: unknown): Extinguisher["status"] => {
   const raw = String(value ?? "").trim();
   const v = raw.toLowerCase();
-  if (["✓", "✔", "เช็คแล้ว", "ตรวจแล้ว", "ปกติ"].includes(raw) || ["checked", "done", "ok", "1", "yes", "y"].some((x) => v.includes(x))) return "checked";
-  if (["×", "x", "X", "ยังไม่ตรวจ", "ผิดปกติ"].includes(raw) || ["unchecked", "pending", "no", "0", "n"].some((x) => v.includes(x))) return "unchecked";
+  if (["ตรวจแล้ว", "ปกติ", "✓", "✔"].includes(raw) || ["checked", "done", "ok", "1", "yes", "y"].includes(v)) return "checked";
+  if (raw === "ผิดปกติ" || v === "danger") return "danger";
+  if (raw === "ใกล้ตรวจสอบ" || v === "warning") return "warning";
+  if (["ยังไม่ตรวจ", "×", "x", "X"].includes(raw) || ["unchecked", "pending", "no", "0", "n"].includes(v)) return "unchecked";
   return "unknown";
 };
 
-const monthFormat = new Intl.DateTimeFormat("th-TH", { month: "long", year: "numeric" });
+const needsInspection = (status: Extinguisher["status"]) => status !== "checked";
+
+const getLatestStatusValue = (record: Record<string, unknown>) => {
+  const latest = pick(record, ["ตรวจล่าสุด"]);
+  const latestMonth = String(latest).trim();
+
+  if (MONTH_COLUMNS.includes(latestMonth)) {
+    return record[latestMonth] ?? "";
+  }
+
+  return latest || pick(record, ["status", "result", "สถานะ", "checked"]);
+};
 
 export default function HomePage() {
   const [rows, setRows] = useState<Extinguisher[]>([]);
@@ -56,27 +74,24 @@ export default function HomePage() {
         const res = await fetch(API_URL, { cache: "no-store" });
         if (!res.ok) throw new Error(`โหลดข้อมูลไม่สำเร็จ (${res.status})`);
         const json = await res.json();
-        const raw = Array.isArray(json) ? json : Array.isArray(json?.data) ? json.data : [];
+        const raw = getRecords(json);
 
         const mapped: Extinguisher[] = raw.map((r: Record<string, unknown>, i: number) => {
           const checkedAtRaw = pick(r, ["ตรวจล่าสุด", "วันที่ตรวจ", "checkedAt", "date", "timestamp", "updatedAt"]);
-          const date = parseDate(checkedAtRaw);
           const id = String(pick(r, ["รหัสถังดับเพลิง", "id", "fireId", "ถัง", "tankId", "qr", "serial"]) || `FG-${i + 1}`);
-          const status = parseStatus(pick(r, ["status", "result", "สถานะ", "checked"]));
+          const status = parseStatus(getLatestStatusValue(r));
           const mapXRaw = pick(r, ["mapX", "x", "posX"]);
           const mapYRaw = pick(r, ["mapY", "y", "posY"]);
           const mapName = String(pick(r, ["mapName", "building", "map", "แผนผัง"]) || "แผนผังหลัก");
           const mapImage = String(pick(r, ["mapImage", "mapUrl", "image", "mapPath"]) || "/maps/er-floor1.png");
-const monthlyStatus =
-  MONTH_COLUMNS.find((m) => String(r[m] ?? "").trim() !== "") || "-";
           return {
             id,
             location: String(pick(r, ["จุดติดตั้ง", "location", "ตำแหน่ง"]) || "-"),
             zone: String(pick(r, ["อาคาร", "zone", "area"]) || "-"),
             inspector: String(pick(r, ["inspector", "ผู้ตรวจ", "checker", "name"]) || "ไม่ระบุ"),
-            status: monthlyStatus === "-" ? status : parseStatus(monthlyStatus),
-            checkedAt: monthlyStatus,
-            monthKey: date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}` : "unknown",
+            status,
+            checkedAt: String(checkedAtRaw || "-"),
+            monthlyStatuses: Object.fromEntries(MONTH_COLUMNS.map((month) => [month, r[month] ?? ""])),
             mapX: mapXRaw === "" ? null : Number(mapXRaw),
             mapY: mapYRaw === "" ? null : Number(mapYRaw),
             mapName,
@@ -95,15 +110,16 @@ const monthlyStatus =
     load();
   }, []);
 
-  const months = useMemo(() => {
-    const unique = Array.from(new Set(rows.map((r) => r.monthKey).filter((m) => m !== "unknown"))).sort().reverse();
-    return unique.map((m) => {
-      const [y, mm] = m.split("-").map(Number);
-      return { key: m, label: monthFormat.format(new Date(y, mm - 1, 1)) };
-    });
-  }, [rows]);
-
-  const filtered = useMemo(() => (selectedMonth === "all" ? rows : rows.filter((r) => r.monthKey === selectedMonth)), [rows, selectedMonth]);
+  const filtered = useMemo(
+    () =>
+      selectedMonth === "all"
+        ? rows
+        : rows.map((r) => ({
+            ...r,
+            status: parseStatus(r.monthlyStatuses[selectedMonth])
+          })),
+    [rows, selectedMonth]
+  );
   const maps = useMemo(() => Array.from(new Set(filtered.map((r) => r.mapName))).sort(), [filtered]);
 
   const mapScoped = useMemo(
@@ -112,9 +128,8 @@ const monthlyStatus =
   );
 
   const selectedMapImage = useMemo(() => {
-    if (selectedMap === "all") return "/maps/er-floor1.png";
     return mapScoped.find((r) => r.mapImage)?.mapImage || "/maps/er-floor1.png";
-  }, [mapScoped, selectedMap]);
+  }, [mapScoped]);
 
   useEffect(() => {
     if (selectedMap !== "all" && !maps.includes(selectedMap)) {
@@ -123,12 +138,12 @@ const monthlyStatus =
   }, [maps, selectedMap]);
 
   const kpi = useMemo(() => {
-    const total = filtered.length;
-    const checked = filtered.filter((r) => r.status === "checked").length;
-    const unchecked = filtered.filter((r) => ["unchecked", "warning", "danger"].includes(r.status)).length;
+    const total = mapScoped.length;
+    const checked = mapScoped.filter((r) => r.status === "checked").length;
+    const unchecked = mapScoped.filter((r) => needsInspection(r.status)).length;
     const completeness = total ? Math.round((checked / total) * 100) : 0;
     return { total, checked, unchecked, completeness };
-  }, [filtered]);
+  }, [mapScoped]);
 
   return (
     <main className="container">
@@ -152,9 +167,9 @@ const monthlyStatus =
             <label htmlFor="month">เลือกเดือน:</label>
             <select id="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
               <option value="all">ทั้งหมด</option>
-              {months.map((m) => (
-                <option key={m.key} value={m.key}>
-                  {m.label}
+              {MONTH_COLUMNS.map((month) => (
+                <option key={month} value={month}>
+                  {month}
                 </option>
               ))}
             </select>
@@ -171,7 +186,7 @@ const monthlyStatus =
 
           <MapSection data={mapScoped} mapImage={selectedMapImage} mapName={selectedMap} active={active} setActive={setActive} />
           <TableSection title="ตารางถังทั้งหมด" data={mapScoped} />
-          <TableSection title="ตารางถังที่ยังไม่ตรวจ" data={mapScoped.filter((r) => r.status === "unchecked")} />
+          <TableSection title="ตารางถังที่ยังไม่ตรวจ" data={mapScoped.filter((r) => needsInspection(r.status))} />
         </>
       )}
     </main>
@@ -215,23 +230,36 @@ function MapSection({
   active: Extinguisher | null;
   setActive: (item: Extinguisher) => void;
 }) {
+  if (mapName === "all") {
+    return (
+      <section>
+        <h2>แผนผังถังดับเพลิง</h2>
+        <p>เลือกอาคาร/แผนผังก่อนเพื่อดูตำแหน่งถังบนแผนผัง</p>
+      </section>
+    );
+  }
+
   return (
     <section>
       <h2>แผนผังถังดับเพลิง {mapName !== "all" ? `(${mapName})` : ""}</h2>
       <div className="mapBox">
-        <img src={mapImage} alt={`แผนผัง ${mapName === "all" ? "รวมทุกอาคาร" : mapName}`} className="map" />
-        {data.map((r) => {
-          if (r.mapX === null || r.mapY === null || Number.isNaN(r.mapX) || Number.isNaN(r.mapY)) return null;
-          return (
-            <button
-              key={`marker-${r.id}`}
-              className={`marker ${r.status} ${active?.id === r.id ? "active" : ""}`}
-              style={{ left: `${r.mapX}%`, top: `${r.mapY}%` }}
-              onClick={() => setActive(r)}
-              aria-label={`ถัง ${r.id}`}
-            />
-          );
-        })}
+        <div className="mapStage">
+          <img src={mapImage} alt={`แผนผัง ${mapName === "all" ? "รวมทุกอาคาร" : mapName}`} className="map" />
+          <div className="markerLayer">
+            {data.map((r) => {
+              if (r.mapX === null || r.mapY === null || Number.isNaN(r.mapX) || Number.isNaN(r.mapY)) return null;
+              return (
+                <button
+                  key={`marker-${r.id}`}
+                  className={`marker ${r.status} ${active?.id === r.id ? "active" : ""}`}
+                  style={{ left: `${r.mapX}%`, top: `${r.mapY}%` }}
+                  onClick={() => setActive(r)}
+                  aria-label={`ถัง ${r.id}`}
+                />
+              );
+            })}
+          </div>
+        </div>
       </div>
       {active && <div className="detail">ถัง {active.id} | {active.zone} | {active.location} | {statusText(active.status)} | ผู้ตรวจ: {active.inspector} | วันที่: {active.checkedAt}</div>}
     </section>
@@ -239,5 +267,5 @@ function MapSection({
 }
 
 const statusText = (s: Extinguisher["status"]) => (
-  s === "checked" ? "ตรวจแล้ว" : s === "warning" ? "ใกล้ตรวจสอบ" : s === "danger" || s === "unchecked" ? "ยังไม่ตรวจ" : "ไม่มีข้อมูล"
+  s === "checked" ? "ตรวจแล้ว" : s === "warning" ? "ใกล้ตรวจสอบ" : s === "danger" ? "ผิดปกติ" : s === "unchecked" ? "ยังไม่ตรวจ" : "ไม่มีข้อมูล"
 );
