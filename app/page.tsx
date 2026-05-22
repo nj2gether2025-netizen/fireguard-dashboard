@@ -16,8 +16,11 @@ type Extinguisher = {
   mapName: string;
   mapImage: string;
 };
+type TableView = "all" | "unchecked" | "checked";
 
 const MONTH_COLUMNS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+const CURRENT_MONTH = MONTH_COLUMNS[new Date().getMonth()];
+const CURRENT_DATE_LABEL = new Intl.DateTimeFormat("th-TH", { dateStyle: "full" }).format(new Date());
 
 const pick = (obj: Record<string, unknown>, keys: string[]) => {
   const found = keys.find((k) => obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== "");
@@ -48,24 +51,17 @@ const parseStatus = (value: unknown): Extinguisher["status"] => {
 
 const needsInspection = (status: Extinguisher["status"]) => status !== "checked";
 
-const getLatestStatusValue = (record: Record<string, unknown>) => {
-  const latest = pick(record, ["ตรวจล่าสุด"]);
-  const latestMonth = String(latest).trim();
-
-  if (MONTH_COLUMNS.includes(latestMonth)) {
-    return record[latestMonth] ?? "";
-  }
-
-  return latest || pick(record, ["status", "result", "สถานะ", "checked"]);
-};
+const getCurrentMonthStatusValue = (record: Record<string, unknown>) =>
+  record[CURRENT_MONTH] ?? pick(record, ["status", "result", "สถานะ", "checked"]);
 
 export default function HomePage() {
   const [rows, setRows] = useState<Extinguisher[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [selectedMonth, setSelectedMonth] = useState("all");
+  const [selectedMonth, setSelectedMonth] = useState(CURRENT_MONTH);
   const [selectedMap, setSelectedMap] = useState("all");
   const [active, setActive] = useState<Extinguisher | null>(null);
+  const [tableView, setTableView] = useState<TableView>("unchecked");
 
   useEffect(() => {
     const load = async () => {
@@ -79,7 +75,7 @@ export default function HomePage() {
         const mapped: Extinguisher[] = raw.map((r: Record<string, unknown>, i: number) => {
           const checkedAtRaw = pick(r, ["ตรวจล่าสุด", "วันที่ตรวจ", "checkedAt", "date", "timestamp", "updatedAt"]);
           const id = String(pick(r, ["รหัสถังดับเพลิง", "id", "fireId", "ถัง", "tankId", "qr", "serial"]) || `FG-${i + 1}`);
-          const status = parseStatus(getLatestStatusValue(r));
+          const status = parseStatus(getCurrentMonthStatusValue(r));
           const mapXRaw = pick(r, ["mapX", "x", "posX"]);
           const mapYRaw = pick(r, ["mapY", "y", "posY"]);
           const mapName = String(pick(r, ["mapName", "building", "map", "แผนผัง"]) || "แผนผังหลัก");
@@ -145,11 +141,19 @@ export default function HomePage() {
     return { total, checked, unchecked, completeness };
   }, [mapScoped]);
 
+  const tableOptions: { label: string; title: string; data: Extinguisher[]; value: TableView }[] = [
+    { label: "ทั้งหมด", title: "ตารางถังทั้งหมด", data: mapScoped, value: "all" },
+    { label: "ยังไม่ได้ตรวจ", title: "ตารางถังที่ยังไม่ตรวจ", data: mapScoped.filter((r) => needsInspection(r.status)), value: "unchecked" },
+    { label: "ตรวจแล้ว", title: "ตารางถังที่ตรวจแล้ว", data: mapScoped.filter((r) => r.status === "checked"), value: "checked" }
+  ];
+  const selectedTable = tableOptions.find((option) => option.value === tableView) ?? tableOptions[0];
+
   return (
     <main className="container">
       <header>
         <h1>FireGuard QR Dashboard</h1>
         <p>ENV Team โรงพยาบาลบางคล้า</p>
+        <p className="dashboardDate">วันที่ปัจจุบัน: {CURRENT_DATE_LABEL} | ข้อมูลเดือน: {selectedMonth}</p>
       </header>
       {loading && <p>กำลังโหลดข้อมูล...</p>}
       {error && <p className="error">{error}</p>}
@@ -185,8 +189,21 @@ export default function HomePage() {
           </section>
 
           <MapSection data={mapScoped} mapImage={selectedMapImage} mapName={selectedMap} active={active} setActive={setActive} />
-          <TableSection title="ตารางถังทั้งหมด" data={mapScoped} />
-          <TableSection title="ตารางถังที่ยังไม่ตรวจ" data={mapScoped.filter((r) => needsInspection(r.status))} />
+          <section className="tablePanel">
+            <div className="tableTabs" aria-label="เลือกตารางถัง">
+              {tableOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`tableTab ${tableView === option.value ? "active" : ""}`}
+                  onClick={() => setTableView(option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <TableSection title={selectedTable.title} data={selectedTable.data} />
+          </section>
         </>
       )}
     </main>
@@ -201,17 +218,32 @@ function TableSection({ title, data }: { title: string; data: Extinguisher[] }) 
   return (
     <section>
       <h2>{title}</h2>
-      <div className="tableWrap">
+      <div className="tableWrap desktopTable">
         <table>
           <thead><tr><th>รหัส</th><th>โซน</th><th>ตำแหน่ง</th><th>สถานะ</th><th>ผู้ตรวจ</th><th>วันที่</th></tr></thead>
           <tbody>
             {data.map((r) => (
-              <tr key={`${title}-${r.id}`}>
-                <td>{r.id}</td><td>{r.zone}</td><td>{r.location}</td><td>{statusText(r.status)}</td><td>{r.inspector}</td><td>{r.checkedAt}</td>
+              <tr key={`${title}-${r.id}`} className={`statusRow ${r.status}`}>
+                <td data-label="รหัส">{r.id}</td><td data-label="โซน">{r.zone}</td><td data-label="ตำแหน่ง">{r.location}</td><td data-label="สถานะ">{statusText(r.status)}</td><td data-label="ผู้ตรวจ">{r.inspector}</td><td data-label="วันที่">{r.checkedAt}</td>
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
+      <div className="mobileTankList">
+        {data.map((r) => (
+          <article key={`mobile-${title}-${r.id}`} className="mobileTankCard">
+            <div className="mobileTankHeader">
+              <h3>{r.id}</h3>
+              <span className={`statusBadge ${r.status}`}>{mobileStatusText(r.status)}</span>
+            </div>
+            <p><strong>อาคาร:</strong> {r.zone}</p>
+            <p><strong>จุดติดตั้ง:</strong> {r.location}</p>
+            <p><strong>สถานะ:</strong> {mobileStatusText(r.status)}</p>
+            <p><strong>{r.status === "unchecked" ? "วันที่ตรวจล่าสุด" : "เดือน/วันที่"}:</strong> {r.checkedAt}</p>
+            {r.inspector !== "ไม่ระบุ" && <p><strong>ผู้ตรวจ:</strong> {r.inspector}</p>}
+          </article>
+        ))}
       </div>
     </section>
   );
@@ -286,4 +318,8 @@ function MapSection({
 
 const statusText = (s: Extinguisher["status"]) => (
   s === "checked" ? "ตรวจแล้ว" : s === "warning" ? "ใกล้ตรวจสอบ" : s === "danger" ? "ผิดปกติ" : s === "unchecked" ? "ยังไม่ตรวจ" : "ไม่มีข้อมูล"
+);
+
+const mobileStatusText = (s: Extinguisher["status"]) => (
+  s === "checked" ? "ตรวจแล้ว" : s === "danger" ? "ผิดปกติ" : s === "unchecked" ? "ยังไม่ได้ตรวจ" : statusText(s)
 );

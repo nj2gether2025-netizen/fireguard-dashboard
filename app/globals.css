@@ -4,6 +4,7 @@ body { margin: 0; font-family: Arial, sans-serif; background: #f5fff6; color: #1
 .container { max-width: 1200px; margin: 0 auto; padding: 16px; }
 header { text-align: center; margin-bottom: 16px; }
 h1 { margin: 0; color: #0b7a2a; }
+.dashboardDate { margin: 6px 0 0; color: #276438; font-weight: 700; }
 .kpis { display: grid; grid-template-columns: repeat(auto-fit,minmax(160px,1fr)); gap: 12px; margin: 12px 0; }
 .card { background: #fff; border: 1px solid #b9e9c4; border-radius: 12px; padding: 12px; }
 .card strong { font-size: 1.5rem; color: #0d8a30; }
@@ -16,13 +17,54 @@ select { padding: 8px; border-radius: 8px; border: 1px solid #7ac78f; }
 .markerLayer { position: absolute; inset: 0; }
 .marker { position: absolute; width: 14px; height: 14px; padding: 0; border-radius: 999px; border: 2px solid white; transform: translate(-50%, -50%); cursor: pointer; }
 .marker.checked { background: #18a43b; }
-.marker.unchecked { background: #d71c1c; }
+.marker.unchecked,
+.marker.warning { background: #ffc21a; }
+.marker.danger { background: #d71c1c; }
 .marker.unknown { background: #7d7d7d; }
 .marker.active { box-shadow: 0 0 0 3px #ffd53d; }
 .coordinateBox { width: fit-content; margin-top: 8px; padding: 10px 12px; border: 1px solid #c9e8cf; border-radius: 8px; background: #fff; }
 .coordinateBox p { margin: 0; line-height: 1.5; }
 .detail { margin-top: 8px; padding: 10px; background: #fff; border: 1px solid #c9e8cf; border-radius: 8px; }
+.tablePanel { margin-top: 20px; }
+.tableTabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.tableTab { min-height: 40px; padding: 8px 12px; border: 1px solid #7ac78f; border-radius: 8px; background: #fff; color: #103b1a; cursor: pointer; font: inherit; font-weight: 700; }
+.tableTab.active { background: #0d8a30; border-color: #0d8a30; color: #fff; }
 .tableWrap { overflow-x: auto; background: #fff; border: 1px solid #c9e8cf; border-radius: 10px; }
+.mobileTankList { display: none; }
 table { width: 100%; border-collapse: collapse; }
 th, td { border-bottom: 1px solid #e4f2e8; padding: 8px; text-align: left; white-space: nowrap; }
+.statusRow.checked td { background: #d8f5df; color: #075a20; }
+.statusRow.unchecked td { background: #f8caca; color: #871111; }
+.statusRow.danger td { animation: alertRow 1.15s ease-in-out infinite; }
+@keyframes alertRow {
+  0%, 100% { background: #fff0f0; color: #871111; }
+  50% { background: #e22626; color: #fff; }
+}
 .error { color: #c31717; background: #ffe6e6; padding: 8px; border-radius: 8px; }
+
+@media (max-width: 640px) {
+  .container { padding: 12px; }
+  h1 { font-size: 1.75rem; }
+  h2 { font-size: 1.35rem; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .card { min-height: 96px; padding: 10px; }
+  .card h3 { margin: 0 0 8px; font-size: 1rem; }
+  .filter { display: grid; grid-template-columns: 1fr; align-items: stretch; gap: 6px; }
+  select { width: 100%; min-height: 42px; }
+  .mapHint, .detail { line-height: 1.45; }
+  .marker { width: 16px; height: 16px; }
+  .coordinateBox { width: 100%; }
+  .tableTabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .tableTab { min-height: 36px; padding: 6px 4px; font-size: .9rem; }
+  .desktopTable { display: none; }
+  .mobileTankList { display: grid; gap: 12px; }
+  .mobileTankCard { border: 1px solid #d9eedf; border-radius: 8px; background: #fff; padding: 12px; box-shadow: 0 1px 0 rgba(7, 90, 32, .05); }
+  .mobileTankCard h3 { margin: 0; font-size: 1.25rem; }
+  .mobileTankCard p { margin: 6px 0 0; line-height: 1.4; overflow-wrap: anywhere; }
+  .mobileTankHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+  .statusBadge { display: inline-flex; align-items: center; min-height: 26px; border-radius: 999px; padding: 4px 9px; font-size: .85rem; font-weight: 700; line-height: 1.1; white-space: nowrap; }
+  .statusBadge.checked { background: #d8f5df; color: #075a20; }
+  .statusBadge.unchecked, .statusBadge.warning { background: #fff0b3; color: #7a5600; }
+  .statusBadge.danger { background: #ffd5d5; color: #a60d0d; }
+  .statusBadge.unknown { background: #ececec; color: #4d4d4d; }
+}
