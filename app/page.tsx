@@ -17,10 +17,64 @@ type Extinguisher = {
   mapImage: string;
 };
 type TableView = "all" | "unchecked" | "checked";
+type StatusCounts = { total: number; checked: number; unchecked: number; warning: number; danger: number; unknown: number };
+type OverlayKey = "checked" | "danger" | "unchecked" | "updated";
+type OverlayPosition = { left: number; top: number };
 
 const MONTH_COLUMNS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 const CURRENT_MONTH = MONTH_COLUMNS[new Date().getMonth()];
 const CURRENT_DATE_LABEL = new Intl.DateTimeFormat("th-TH", { dateStyle: "full" }).format(new Date());
+const CURRENT_MAP_DATE_LABEL = new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "short", year: "numeric" }).format(new Date());
+const DEFAULT_MAP_OVERLAY_POSITIONS: Record<OverlayKey, OverlayPosition> = {
+  checked: { left: 55.2, top: 14.9 },
+  danger: { left: 68.2, top: 14.9 },
+  unchecked: { left: 80.9, top: 14.9 },
+  updated: { left: 93.1, top: 14.9 }
+};
+const MAP_OVERLAY_POSITIONS: Record<string, Record<OverlayKey, OverlayPosition>> = {
+  "cr.png": {
+    checked: { left: 54.0, top: 16.8 },
+    danger: { left: 66.4, top: 16.8 },
+    unchecked: { left: 78.9, top: 16.8 },
+    updated: { left: 91.8, top: 16.8 }
+  },
+  "er-floor1.png": {
+    checked: { left: 50.8, top: 7.9 },
+    danger: { left: 64.0, top: 7.9 },
+    unchecked: { left: 77.1, top: 7.9 },
+    updated: { left: 91.2, top: 7.9 }
+  },
+  "er-floor2.png": {
+    checked: { left: 50.7, top: 8.9 },
+    danger: { left: 64.1, top: 8.9 },
+    unchecked: { left: 77.4, top: 8.9 },
+    updated: { left: 91.4, top: 8.9 }
+  },
+  "ipd.png": {
+    checked: { left: 54.1, top: 8.2 },
+    danger: { left: 66.6, top: 8.2 },
+    unchecked: { left: 79.3, top: 8.2 },
+    updated: { left: 92.4, top: 8.2 }
+  },
+  "mt-floor1.png": {
+    checked: { left: 53.3, top: 10.9 },
+    danger: { left: 65.0, top: 10.9 },
+    unchecked: { left: 78.0, top: 10.9 },
+    updated: { left: 92.2, top: 10.9 }
+  },
+  "mt-floor2.png": {
+    checked: { left: 53.9, top: 17.0 },
+    danger: { left: 66.4, top: 17.0 },
+    unchecked: { left: 78.8, top: 17.0 },
+    updated: { left: 91.7, top: 17.0 }
+  },
+  "opd.png": {
+    checked: { left: 54.6, top: 10.7 },
+    danger: { left: 66.6, top: 10.7 },
+    unchecked: { left: 79.6, top: 10.7 },
+    updated: { left: 92.6, top: 10.7 }
+  }
+};
 
 const pick = (obj: Record<string, unknown>, keys: string[]) => {
   const found = keys.find((k) => obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== "");
@@ -263,6 +317,16 @@ function MapSection({
   setActive: (item: Extinguisher) => void;
 }) {
   const [coordinate, setCoordinate] = useState<{ mapX: number; mapY: number } | null>(null);
+  const statusCounts = useMemo(() => {
+    return data.reduce(
+      (acc, item) => {
+        acc.total += 1;
+        acc[item.status] += 1;
+        return acc;
+      },
+      { total: 0, checked: 0, unchecked: 0, warning: 0, danger: 0, unknown: 0 }
+    ) as StatusCounts;
+  }, [data]);
 
   const readMapCoordinate = (event: MouseEvent<HTMLDivElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -288,6 +352,7 @@ function MapSection({
       <div className="mapBox">
         <div className="mapStage" onClick={readMapCoordinate}>
           <img src={mapImage} alt={`แผนผัง ${mapName === "all" ? "รวมทุกอาคาร" : mapName}`} className="map" />
+          <MapImageStatusCounts counts={statusCounts} mapImage={mapImage} />
           <div className="markerLayer">
             {data.map((r) => {
               if (r.mapX === null || r.mapY === null || Number.isNaN(r.mapX) || Number.isNaN(r.mapY)) return null;
@@ -313,6 +378,31 @@ function MapSection({
       )}
       {active && <div className="detail">ถัง {active.id} | {active.zone} | {active.location} | {statusText(active.status)} | ผู้ตรวจ: {active.inspector} | วันที่: {active.checkedAt}</div>}
     </section>
+  );
+}
+
+function MapImageStatusCounts({
+  counts,
+  mapImage
+}: {
+  counts: StatusCounts;
+  mapImage: string;
+}) {
+  const notChecked = counts.unchecked + counts.warning + counts.unknown;
+  const imageName = mapImage.split("/").pop() ?? "";
+  const positions = MAP_OVERLAY_POSITIONS[imageName] ?? DEFAULT_MAP_OVERLAY_POSITIONS;
+  const positionStyle = (key: OverlayKey) => ({
+    left: `${positions[key].left}%`,
+    top: `${positions[key].top}%`
+  });
+
+  return (
+    <div className="mapImageCounts" aria-label="จำนวนถังตามสถานะบนแผนผัง">
+      <span className="mapImageCount checked" style={positionStyle("checked")} title="ปกติ">{counts.checked}</span>
+      <span className="mapImageCount danger" style={positionStyle("danger")} title="ผิดปกติ">{counts.danger}</span>
+      <span className="mapImageCount unchecked" style={positionStyle("unchecked")} title="ยังไม่ได้ตรวจ">{notChecked}</span>
+      <span className="mapImageCount updated" style={positionStyle("updated")} title="อัปเดตล่าสุด">{CURRENT_MAP_DATE_LABEL}</span>
+    </div>
   );
 }
 

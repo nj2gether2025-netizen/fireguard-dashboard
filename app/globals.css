@@ -14,6 +14,9 @@ select { padding: 8px; border-radius: 8px; border: 1px solid #7ac78f; }
 .mapHint { margin: 8px 0; }
 .mapStage { position: relative; line-height: 0; cursor: crosshair; }
 .map { width: 100%; height: auto; display: block; }
+.mapImageCounts { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.mapImageCount { position: absolute; transform: translate(-50%, -50%); font-weight: 800; font-size: clamp(1.05rem, 2.5vw, 1.85rem); line-height: 1; color: #071b3d; text-align: center; text-shadow: 0 1px 0 #fff, 0 0 5px #fff; }
+.mapImageCount.updated { width: 10%; font-size: clamp(.58rem, 1.3vw, .98rem); line-height: 1.15; }
 .markerLayer { position: absolute; inset: 0; }
 .marker { position: absolute; width: 14px; height: 14px; padding: 0; border-radius: 999px; border: 2px solid white; transform: translate(-50%, -50%); cursor: pointer; }
 .marker.checked { background: #18a43b; }
@@ -52,7 +55,10 @@ th, td { border-bottom: 1px solid #e4f2e8; padding: 8px; text-align: left; white
   .filter { display: grid; grid-template-columns: 1fr; align-items: stretch; gap: 6px; }
   select { width: 100%; min-height: 42px; }
   .mapHint, .detail { line-height: 1.45; }
-  .marker { width: 16px; height: 16px; }
+  .mapImageCount { font-size: clamp(.72rem, 3.4vw, 1.05rem); }
+  .mapImageCount.updated { font-size: clamp(.38rem, 1.9vw, .62rem); }
+  .marker { width: 9px; height: 9px; border-width: 1px; }
+  .marker.active { box-shadow: 0 0 0 2px #ffd53d; }
   .coordinateBox { width: 100%; }
   .tableTabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
   .tableTab { min-height: 36px; padding: 6px 4px; font-size: .9rem; }
