@@ -109,6 +109,23 @@ const needsInspection = (status: Extinguisher["status"]) => status !== "checked"
 const hasMonthStatusValue = (value: unknown) =>
   value !== undefined && value !== null && String(value).trim() !== "";
 
+const toDisplayValue = (value: unknown) => {
+  const text = String(value ?? "").trim();
+  if (!text || text === "ไม่ระบุ" || text === "ยังไม่ตรวจ" || MONTH_COLUMNS.includes(text)) return "-";
+  return text;
+};
+
+const getInspectionDisplay = (item: Extinguisher) => {
+  if (needsInspection(item.status)) {
+    return { inspector: "-", checkedAt: "-" };
+  }
+
+  return {
+    inspector: toDisplayValue(item.inspector),
+    checkedAt: toDisplayValue(item.checkedAt)
+  };
+};
+
 const getCurrentMonthStatusValue = (record: Record<string, unknown>) =>
   record[CURRENT_MONTH] ?? pick(record, ["status", "result", "สถานะ", "checked"]);
 
@@ -177,7 +194,7 @@ export default function HomePage() {
       return {
         ...r,
         status: hasRecordInSelectedMonth ? parseStatus(monthStatus) : "unchecked",
-        checkedAt: hasRecordInSelectedMonth ? selectedMonth : "ยังไม่ตรวจ"
+        checkedAt: hasRecordInSelectedMonth && selectedMonth === CURRENT_MONTH ? r.checkedAt : "-"
       };
     });
   }, [rows, selectedMonth]);
@@ -363,34 +380,42 @@ function TableSection({ title, data }: { title: string; data: Extinguisher[] }) 
         <>
           <div className="tableWrap desktopTable">
             <table>
-              <thead><tr><th>รหัส</th><th>อาคาร/โซน</th><th>ตำแหน่ง</th><th>สถานะ</th><th>ผู้ตรวจ</th><th>วันที่</th></tr></thead>
+              <thead><tr><th>รหัส</th><th>อาคาร/โซน</th><th>ตำแหน่ง</th><th>สถานะ</th><th>ผู้ตรวจ</th><th>วันที่ตรวจล่าสุด</th></tr></thead>
               <tbody>
-                {data.map((r) => (
-                  <tr key={`${title}-${r.id}`} className={`statusRow ${r.status}`}>
-                    <td data-label="รหัส">{r.id}</td><td data-label="อาคาร/โซน">{r.zone}</td><td data-label="ตำแหน่ง">{r.location}</td><td data-label="สถานะ"><span className={`statusBadge ${r.status}`}>{statusText(r.status)}</span></td><td data-label="ผู้ตรวจ">{r.inspector}</td><td data-label="วันที่">{r.checkedAt}</td>
-                  </tr>
-                ))}
+                {data.map((r) => {
+                  const display = getInspectionDisplay(r);
+
+                  return (
+                    <tr key={`${title}-${r.id}`} className={`statusRow ${r.status}`}>
+                      <td data-label="รหัส">{r.id}</td><td data-label="อาคาร/โซน">{r.zone}</td><td data-label="ตำแหน่ง">{r.location}</td><td data-label="สถานะ"><span className={`statusBadge ${r.status}`}>{statusText(r.status)}</span></td><td data-label="ผู้ตรวจ">{display.inspector}</td><td data-label="วันที่ตรวจล่าสุด">{display.checkedAt}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
           <div className="mobileTankList">
-            {data.map((r) => (
-              <article key={`mobile-${title}-${r.id}`} className={`mobileTankCard ${r.status}`}>
-                <div className="mobileTankHeader">
-                  <div>
-                    <span className="mobileTankLabel">รหัสถัง/จุดตรวจ</span>
-                    <h3>{r.id}</h3>
+            {data.map((r) => {
+              const display = getInspectionDisplay(r);
+
+              return (
+                <article key={`mobile-${title}-${r.id}`} className={`mobileTankCard ${r.status}`}>
+                  <div className="mobileTankHeader">
+                    <div>
+                      <span className="mobileTankLabel">รหัสถัง/จุดตรวจ</span>
+                      <h3>{r.id}</h3>
+                    </div>
+                    <span className={`statusBadge ${r.status}`}>{mobileStatusText(r.status)}</span>
                   </div>
-                  <span className={`statusBadge ${r.status}`}>{mobileStatusText(r.status)}</span>
-                </div>
-                <dl className="mobileTankDetails">
-                  <div><dt>อาคาร/ชั้น/โซน</dt><dd>{r.zone}</dd></div>
-                  <div><dt>ตำแหน่ง</dt><dd>{r.location}</dd></div>
-                  <div><dt>วันที่ตรวจ</dt><dd>{r.checkedAt}</dd></div>
-                  {r.inspector !== "ไม่ระบุ" && <div><dt>ผู้ตรวจ</dt><dd>{r.inspector}</dd></div>}
-                </dl>
-              </article>
-            ))}
+                  <dl className="mobileTankDetails">
+                    <div><dt>อาคาร/ชั้น/โซน</dt><dd>{r.zone}</dd></div>
+                    <div><dt>ตำแหน่ง</dt><dd>{r.location}</dd></div>
+                    <div><dt>วันที่ตรวจล่าสุด</dt><dd>{display.checkedAt}</dd></div>
+                    <div><dt>ผู้ตรวจ</dt><dd>{display.inspector}</dd></div>
+                  </dl>
+                </article>
+              );
+            })}
           </div>
         </>
       )}
@@ -525,23 +550,27 @@ function MapSection({
           {copyStatus && <p className="copyStatus">{copyStatus}</p>}
         </div>
       )}
-      {active && (
-        <article className={`inspectionDetail ${active.status}`}>
-          <div className="inspectionDetailHeader">
-            <div>
-              <span className="mobileTankLabel">รายละเอียดจุดตรวจ</span>
-              <h3>{active.id}</h3>
+      {active && (() => {
+        const display = getInspectionDisplay(active);
+
+        return (
+          <article className={`inspectionDetail ${active.status}`}>
+            <div className="inspectionDetailHeader">
+              <div>
+                <span className="mobileTankLabel">รายละเอียดจุดตรวจ</span>
+                <h3>{active.id}</h3>
+              </div>
+              <span className={`statusBadge ${active.status}`}>{statusText(active.status)}</span>
             </div>
-            <span className={`statusBadge ${active.status}`}>{statusText(active.status)}</span>
-          </div>
-          <dl className="inspectionDetailGrid">
-            <div><dt>อาคาร/ชั้น/โซน</dt><dd>{active.zone}</dd></div>
-            <div><dt>ตำแหน่ง</dt><dd>{active.location}</dd></div>
-            <div><dt>ผู้ตรวจ</dt><dd>{active.inspector}</dd></div>
-            <div><dt>วันที่ตรวจ</dt><dd>{active.checkedAt}</dd></div>
-          </dl>
-        </article>
-      )}
+            <dl className="inspectionDetailGrid">
+              <div><dt>อาคาร/ชั้น/โซน</dt><dd>{active.zone}</dd></div>
+              <div><dt>ตำแหน่ง</dt><dd>{active.location}</dd></div>
+              <div><dt>ผู้ตรวจ</dt><dd>{display.inspector}</dd></div>
+              <div><dt>วันที่ตรวจล่าสุด</dt><dd>{display.checkedAt}</dd></div>
+            </dl>
+          </article>
+        );
+      })()}
     </section>
   );
 }
