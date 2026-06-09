@@ -109,6 +109,12 @@ const needsInspection = (status: Extinguisher["status"]) => status !== "checked"
 const hasMonthStatusValue = (value: unknown) =>
   value !== undefined && value !== null && String(value).trim() !== "";
 
+const isCheckedAtInSelectedMonth = (checkedAt: unknown, selectedMonth: string) => {
+  if (selectedMonth === "all") return true;
+
+  return String(checkedAt ?? "").includes(selectedMonth);
+};
+
 const toDisplayValue = (value: unknown) => {
   const text = String(value ?? "").trim();
   if (!text || text === "ไม่ระบุ" || text === "ยังไม่ตรวจ" || MONTH_COLUMNS.includes(text)) return "-";
@@ -190,11 +196,13 @@ export default function HomePage() {
     return rows.map((r) => {
       const monthStatus = r.monthlyStatuses[selectedMonth];
       const hasRecordInSelectedMonth = hasMonthStatusValue(monthStatus);
+      const status = hasRecordInSelectedMonth ? parseStatus(monthStatus) : "unchecked";
+      const checkedAt = status === "checked" && isCheckedAtInSelectedMonth(r.checkedAt, selectedMonth) ? r.checkedAt : "-";
 
       return {
         ...r,
-        status: hasRecordInSelectedMonth ? parseStatus(monthStatus) : "unchecked",
-        checkedAt: hasRecordInSelectedMonth && selectedMonth === CURRENT_MONTH ? r.checkedAt : "-"
+        status,
+        checkedAt
       };
     });
   }, [rows, selectedMonth]);
