@@ -208,6 +208,35 @@ select:focus,
   to { transform: rotate(360deg); }
 }
 
+.mapHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.mapHeader h2 {
+  margin-bottom: 6px;
+}
+
+.coordinateToolToggle {
+  min-height: 42px;
+  padding: 9px 14px;
+  border: 1px solid var(--blue);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--blue);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.coordinateToolToggle:hover {
+  background: var(--blue-soft);
+}
+
 .mapBox {
   overflow: hidden;
   border: 1px solid var(--border);
@@ -264,19 +293,129 @@ select:focus,
 .marker.unknown { background: var(--gray); }
 .marker.active { box-shadow: 0 0 0 3px rgba(36, 87, 122, .3), 0 1px 5px rgba(0, 0, 0, .2); }
 
-.coordinateBox,
-.detail {
-  margin-top: 10px;
-  padding: 12px 14px;
+.coordinatePanel,
+.inspectionDetail {
+  margin-top: 12px;
+  padding: 16px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: #fff;
   color: var(--text);
+  box-shadow: 0 8px 20px rgba(30, 58, 55, .05);
 }
 
-.coordinateBox { width: fit-content; }
-.coordinateBox p { margin: 0; line-height: 1.5; }
-.detail { line-height: 1.55; }
+.coordinatePanel {
+  border-color: #c5d8e5;
+  background: #fbfdff;
+}
+
+.coordinatePanel h3,
+.inspectionDetail h3 {
+  margin: 3px 0 0;
+  color: #17312e;
+}
+
+.coordinatePanel p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.coordinatePanelLabel {
+  margin: 0 !important;
+  color: var(--blue) !important;
+  font-size: .82rem;
+  font-weight: 800;
+}
+
+.coordinateValues,
+.inspectionDetailGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.inspectionDetailGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.coordinateValues div,
+.inspectionDetailGrid div {
+  padding: 10px;
+  border: 1px solid #edf2f1;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.coordinateValues dt,
+.inspectionDetailGrid dt {
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 800;
+}
+
+.coordinateValues dd,
+.inspectionDetailGrid dd {
+  margin: 4px 0 0;
+  color: var(--text);
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.coordinateActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.coordinateActions button {
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--blue);
+  border-radius: 8px;
+  background: var(--blue);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+}
+
+.coordinateActions button.secondary {
+  background: #fff;
+  color: var(--blue);
+}
+
+.coordinateActions button:disabled {
+  border-color: #c7d0cd;
+  background: #e8eeec;
+  color: #7a8582;
+  cursor: not-allowed;
+}
+
+.copyStatus {
+  color: var(--blue) !important;
+  font-weight: 800;
+}
+
+.inspectionDetail {
+  border-left-width: 5px;
+}
+
+.inspectionDetail.checked { border-left-color: var(--green); }
+.inspectionDetail.unchecked,
+.inspectionDetail.warning { border-left-color: var(--yellow); }
+.inspectionDetail.danger { border-left-color: var(--red); }
+.inspectionDetail.unknown { border-left-color: var(--gray); }
+
+.inspectionDetailHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
 
 .tablePanel { margin-top: 22px; }
 
@@ -412,7 +551,16 @@ th {
     padding: 15px;
   }
 
-  .mapHint, .detail { line-height: 1.45; }
+  .mapHeader {
+    display: grid;
+    gap: 10px;
+  }
+
+  .coordinateToolToggle {
+    width: 100%;
+  }
+
+  .mapHint, .inspectionDetail { line-height: 1.45; }
   .mapImageCount { font-size: clamp(.72rem, 3.4vw, 1.05rem); }
   .mapImageCount.updated { font-size: clamp(.38rem, 1.9vw, .62rem); }
 
@@ -422,7 +570,18 @@ th {
     border-width: 1px;
   }
 
-  .coordinateBox { width: 100%; }
+  .coordinateValues,
+  .inspectionDetailGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .coordinateActions {
+    display: grid;
+  }
+
+  .coordinateActions button {
+    width: 100%;
+  }
 
   .tableTabs {
     display: grid;

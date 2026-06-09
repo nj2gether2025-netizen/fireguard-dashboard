@@ -391,6 +391,8 @@ function MapSection({
   setActive: (item: Extinguisher) => void;
 }) {
   const [coordinate, setCoordinate] = useState<{ mapX: number; mapY: number } | null>(null);
+  const [coordinateToolOpen, setCoordinateToolOpen] = useState(false);
+  const [copyStatus, setCopyStatus] = useState("");
   const statusCounts = useMemo(() => {
     return data.reduce(
       (acc, item) => {
@@ -408,6 +410,19 @@ function MapSection({
     const mapY = ((event.clientY - rect.top) / rect.height) * 100;
 
     setCoordinate({ mapX, mapY });
+    setCopyStatus("");
+  };
+
+  const copyCoordinate = async () => {
+    if (!coordinate) return;
+
+    const text = `mapX: ${coordinate.mapX.toFixed(2)}, mapY: ${coordinate.mapY.toFixed(2)}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyStatus("คัดลอกพิกัดแล้ว");
+    } catch {
+      setCopyStatus("คัดลอกอัตโนมัติไม่ได้ กรุณาคัดลอกค่าจาก panel");
+    }
   };
 
   if (mapName === "all") {
@@ -421,8 +436,22 @@ function MapSection({
 
   return (
     <section>
-      <h2>แผนผังถังดับเพลิง {mapName !== "all" ? `(${mapName})` : ""}</h2>
-      <p className="mapHint">คลิกบนแผนผังเพื่อดูค่า mapX/mapY แล้วนำไปใส่ Google Sheet</p>
+      <div className="mapHeader">
+        <div>
+          <h2>แผนผังถังดับเพลิง {mapName !== "all" ? `(${mapName})` : ""}</h2>
+          <p className="mapHint">เลือกจุดบนแผนผังเพื่อดูรายละเอียดถังดับเพลิง</p>
+        </div>
+        <button
+          type="button"
+          className="coordinateToolToggle"
+          onClick={() => {
+            setCoordinateToolOpen((open) => !open);
+            setCopyStatus("");
+          }}
+        >
+          เครื่องมือพิกัดแผนที่
+        </button>
+      </div>
       <div className="mapBox">
         <div className="mapStage" onClick={readMapCoordinate}>
           <img src={mapImage} alt={`แผนผัง ${mapName === "all" ? "รวมทุกอาคาร" : mapName}`} className="map" />
@@ -443,14 +472,55 @@ function MapSection({
           </div>
         </div>
       </div>
-      {coordinate && (
-        <div className="coordinateBox">
-          {active && <p>กำลังปรับ: รหัสถัง {active.id}</p>}
-          <p>mapX: {coordinate.mapX.toFixed(2)}</p>
-          <p>mapY: {coordinate.mapY.toFixed(2)}</p>
+      {coordinateToolOpen && (
+        <div className="coordinatePanel">
+          <div>
+            <p className="coordinatePanelLabel">โหมดแก้พิกัดแผนที่</p>
+            <h3>เครื่องมือพิกัดสำหรับผู้ดูแล</h3>
+            <p>คลิกบนแผนที่เพื่อดูค่า mapX/mapY แล้วนำไปปรับใน Google Sheet</p>
+          </div>
+          <dl className="coordinateValues">
+            <div>
+              <dt>รหัสถัง/จุดล่าสุดที่คลิก</dt>
+              <dd>{active ? active.id : "ยังไม่ได้เลือกจุดตรวจ"}</dd>
+            </div>
+            <div>
+              <dt>mapX ล่าสุด</dt>
+              <dd>{coordinate ? coordinate.mapX.toFixed(2) : "-"}</dd>
+            </div>
+            <div>
+              <dt>mapY ล่าสุด</dt>
+              <dd>{coordinate ? coordinate.mapY.toFixed(2) : "-"}</dd>
+            </div>
+          </dl>
+          <div className="coordinateActions">
+            <button type="button" onClick={copyCoordinate} disabled={!coordinate}>
+              คัดลอกพิกัด
+            </button>
+            <button type="button" className="secondary" onClick={() => setCoordinateToolOpen(false)}>
+              ปิดเครื่องมือ
+            </button>
+          </div>
+          {copyStatus && <p className="copyStatus">{copyStatus}</p>}
         </div>
       )}
-      {active && <div className="detail">ถัง {active.id} | {active.zone} | {active.location} | {statusText(active.status)} | ผู้ตรวจ: {active.inspector} | วันที่: {active.checkedAt}</div>}
+      {active && (
+        <article className={`inspectionDetail ${active.status}`}>
+          <div className="inspectionDetailHeader">
+            <div>
+              <span className="mobileTankLabel">รายละเอียดจุดตรวจ</span>
+              <h3>{active.id}</h3>
+            </div>
+            <span className={`statusBadge ${active.status}`}>{statusText(active.status)}</span>
+          </div>
+          <dl className="inspectionDetailGrid">
+            <div><dt>อาคาร/ชั้น/โซน</dt><dd>{active.zone}</dd></div>
+            <div><dt>ตำแหน่ง</dt><dd>{active.location}</dd></div>
+            <div><dt>ผู้ตรวจ</dt><dd>{active.inspector}</dd></div>
+            <div><dt>วันที่ตรวจ</dt><dd>{active.checkedAt}</dd></div>
+          </dl>
+        </article>
+      )}
     </section>
   );
 }
