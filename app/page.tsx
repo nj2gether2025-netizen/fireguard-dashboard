@@ -20,6 +20,7 @@ type TableView = "all" | "unchecked" | "checked";
 type StatusCounts = { total: number; checked: number; unchecked: number; warning: number; danger: number; unknown: number };
 type OverlayKey = "checked" | "danger" | "unchecked" | "updated";
 type OverlayPosition = { left: number; top: number };
+type KpiTone = "neutral" | "success" | "warning" | "danger" | "muted";
 
 const MONTH_COLUMNS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 const CURRENT_MONTH = MONTH_COLUMNS[new Date().getMonth()];
@@ -190,9 +191,12 @@ export default function HomePage() {
   const kpi = useMemo(() => {
     const total = mapScoped.length;
     const checked = mapScoped.filter((r) => r.status === "checked").length;
+    const warning = mapScoped.filter((r) => r.status === "warning" || r.status === "unchecked").length;
+    const danger = mapScoped.filter((r) => r.status === "danger").length;
+    const unknown = mapScoped.filter((r) => r.status === "unknown").length;
     const unchecked = mapScoped.filter((r) => needsInspection(r.status)).length;
     const completeness = total ? Math.round((checked / total) * 100) : 0;
-    return { total, checked, unchecked, completeness };
+    return { total, checked, warning, danger, unknown, unchecked, completeness };
   }, [mapScoped]);
 
   const tableOptions: { label: string; title: string; data: Extinguisher[]; value: TableView }[] = [
@@ -204,101 +208,171 @@ export default function HomePage() {
 
   return (
     <main className="container">
-      <header>
-        <h1>FireGuard QR Dashboard</h1>
-        <p>ENV Team โรงพยาบาลบางคล้า</p>
-        <p className="dashboardDate">วันที่ปัจจุบัน: {CURRENT_DATE_LABEL} | ข้อมูลเดือน: {selectedMonth}</p>
+      <header className="dashboardHeader">
+        <div>
+          <p className="eyebrow">ระบบติดตามการตรวจถังดับเพลิง</p>
+          <h1>FireGuard QR Dashboard</h1>
+          <p className="hospitalUnit">ENV Team โรงพยาบาลบางคล้า</p>
+        </div>
+        <div className="headerMeta" aria-label="ข้อมูลปัจจุบันของแดชบอร์ด">
+          <span>วันที่อัปเดต: {CURRENT_DATE_LABEL}</span>
+          <span>เดือนที่เลือก: {selectedMonth}</span>
+        </div>
       </header>
-      {loading && <p>กำลังโหลดข้อมูล...</p>}
-      {error && <p className="error">{error}</p>}
+      {loading && <LoadingPanel />}
+      {error && <ErrorPanel message={error} />}
 
       {!loading && !error && (
         <>
           <section className="kpis">
-            <Card label="ถังทั้งหมด" value={kpi.total} />
-            <Card label="ตรวจแล้ว" value={kpi.checked} />
-            <Card label="ยังไม่ตรวจ" value={kpi.unchecked} />
-            <Card label="ความครบถ้วน" value={`${kpi.completeness}%`} />
+            <Card label="ถังทั้งหมด" value={kpi.total} tone="neutral" helper="ในขอบเขตที่เลือก" />
+            <Card label="ตรวจแล้ว/ปกติ" value={kpi.checked} tone="success" helper={`${kpi.completeness}% ครบถ้วน`} />
+            <Card label="รอตรวจ/ใกล้ครบกำหนด" value={kpi.warning} tone="warning" helper="ต้องติดตามตามรอบ" />
+            <Card label="ผิดปกติ/อันตราย" value={kpi.danger} tone="danger" helper="ควรเร่งตรวจสอบ" />
+            <Card label="ไม่มีข้อมูล" value={kpi.unknown} tone="muted" helper="สถานะไม่ชัดเจน" />
           </section>
 
-          <section className="filter">
-            <label htmlFor="month">เลือกเดือน:</label>
-            <select id="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
-              <option value="all">ทั้งหมด</option>
-              {MONTH_COLUMNS.map((month) => (
-                <option key={month} value={month}>
-                  {month}
-                </option>
-              ))}
-            </select>
-            <label htmlFor="map">เลือกอาคาร/แผนผัง:</label>
-            <select id="map" value={selectedMap} onChange={(e) => { setSelectedMap(e.target.value); setActive(null); }}>
-              <option value="all">ทั้งหมด</option>
-              {maps.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </section>
-
-          <MapSection data={mapScoped} mapImage={selectedMapImage} mapName={selectedMap} active={active} setActive={setActive} />
-          <section className="tablePanel">
-            <div className="tableTabs" aria-label="เลือกตารางถัง">
-              {tableOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  className={`tableTab ${tableView === option.value ? "active" : ""}`}
-                  onClick={() => setTableView(option.value)}
-                >
-                  {option.label}
-                </button>
-              ))}
+          <section className="filter" aria-label="ตัวกรองข้อมูล">
+            <div className="filterControl">
+              <label htmlFor="month">เดือนที่ต้องการดู</label>
+              <select id="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
+                <option value="all">ทั้งหมด</option>
+                {MONTH_COLUMNS.map((month) => (
+                  <option key={month} value={month}>
+                    {month}
+                  </option>
+                ))}
+              </select>
             </div>
-            <TableSection title={selectedTable.title} data={selectedTable.data} />
+            <div className="filterControl">
+              <label htmlFor="map">อาคาร/แผนผัง</label>
+              <select id="map" value={selectedMap} onChange={(e) => { setSelectedMap(e.target.value); setActive(null); }}>
+                <option value="all">ทั้งหมด</option>
+                {maps.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </div>
           </section>
+
+          {mapScoped.length === 0 ? (
+            <EmptyState selectedMonth={selectedMonth} selectedMap={selectedMap} />
+          ) : (
+            <>
+              <MapSection data={mapScoped} mapImage={selectedMapImage} mapName={selectedMap} active={active} setActive={setActive} />
+              <section className="tablePanel">
+                <div className="tableTabs" aria-label="เลือกตารางถัง">
+                  {tableOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={`tableTab ${tableView === option.value ? "active" : ""}`}
+                      onClick={() => setTableView(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <TableSection title={selectedTable.title} data={selectedTable.data} />
+              </section>
+            </>
+          )}
         </>
       )}
     </main>
   );
 }
 
-function Card({ label, value }: { label: string; value: string | number }) {
-  return <article className="card"><h3>{label}</h3><strong>{value}</strong></article>;
+function Card({ label, value, tone, helper }: { label: string; value: string | number; tone: KpiTone; helper: string }) {
+  return (
+    <article className={`card ${tone}`}>
+      <h3>{label}</h3>
+      <strong>{value}</strong>
+      <p>{helper}</p>
+    </article>
+  );
+}
+
+function LoadingPanel() {
+  return (
+    <section className="statePanel" aria-live="polite">
+      <span className="stateIndicator" />
+      <div>
+        <h2>กำลังโหลดข้อมูลการตรวจถังดับเพลิง</h2>
+        <p>ระบบกำลังเชื่อมต่อข้อมูลล่าสุดจากแหล่งข้อมูล FireGuard กรุณารอสักครู่</p>
+      </div>
+    </section>
+  );
+}
+
+function ErrorPanel({ message }: { message: string }) {
+  return (
+    <section className="statePanel errorPanel" role="alert">
+      <div>
+        <h2>ไม่สามารถโหลดข้อมูล Dashboard ได้</h2>
+        <p className="errorMessage">{message}</p>
+        <p>สาเหตุที่เป็นไปได้: การเชื่อมต่อข้อมูลขัดข้อง, Apps Script ไม่ตอบสนอง หรือสิทธิ์เข้าถึงข้อมูลไม่ถูกต้อง</p>
+        <p>โปรดลองรีเฟรชหน้าเว็บอีกครั้ง หากยังพบปัญหาให้แจ้งผู้ดูแลระบบหรือทีม ENV เพื่อตรวจสอบ</p>
+      </div>
+    </section>
+  );
+}
+
+function EmptyState({ selectedMonth, selectedMap }: { selectedMonth: string; selectedMap: string }) {
+  return (
+    <section className="statePanel emptyPanel">
+      <div>
+        <h2>ไม่พบข้อมูลตามตัวกรองที่เลือก</h2>
+        <p>เดือนที่เลือก: {selectedMonth} | อาคาร/แผนผัง: {selectedMap === "all" ? "ทั้งหมด" : selectedMap}</p>
+        <p>ลองเลือกเดือนหรืออาคารอื่น หรือแจ้งผู้ดูแลให้ตรวจสอบข้อมูลใน Google Sheet</p>
+      </div>
+    </section>
+  );
 }
 
 function TableSection({ title, data }: { title: string; data: Extinguisher[] }) {
   return (
     <section>
       <h2>{title}</h2>
-      <div className="tableWrap desktopTable">
-        <table>
-          <thead><tr><th>รหัส</th><th>โซน</th><th>ตำแหน่ง</th><th>สถานะ</th><th>ผู้ตรวจ</th><th>วันที่</th></tr></thead>
-          <tbody>
+      {data.length === 0 ? (
+        <EmptyState selectedMonth={title} selectedMap="ตารางนี้" />
+      ) : (
+        <>
+          <div className="tableWrap desktopTable">
+            <table>
+              <thead><tr><th>รหัส</th><th>อาคาร/โซน</th><th>ตำแหน่ง</th><th>สถานะ</th><th>ผู้ตรวจ</th><th>วันที่</th></tr></thead>
+              <tbody>
+                {data.map((r) => (
+                  <tr key={`${title}-${r.id}`} className={`statusRow ${r.status}`}>
+                    <td data-label="รหัส">{r.id}</td><td data-label="อาคาร/โซน">{r.zone}</td><td data-label="ตำแหน่ง">{r.location}</td><td data-label="สถานะ"><span className={`statusBadge ${r.status}`}>{statusText(r.status)}</span></td><td data-label="ผู้ตรวจ">{r.inspector}</td><td data-label="วันที่">{r.checkedAt}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mobileTankList">
             {data.map((r) => (
-              <tr key={`${title}-${r.id}`} className={`statusRow ${r.status}`}>
-                <td data-label="รหัส">{r.id}</td><td data-label="โซน">{r.zone}</td><td data-label="ตำแหน่ง">{r.location}</td><td data-label="สถานะ">{statusText(r.status)}</td><td data-label="ผู้ตรวจ">{r.inspector}</td><td data-label="วันที่">{r.checkedAt}</td>
-              </tr>
+              <article key={`mobile-${title}-${r.id}`} className={`mobileTankCard ${r.status}`}>
+                <div className="mobileTankHeader">
+                  <div>
+                    <span className="mobileTankLabel">รหัสถัง/จุดตรวจ</span>
+                    <h3>{r.id}</h3>
+                  </div>
+                  <span className={`statusBadge ${r.status}`}>{mobileStatusText(r.status)}</span>
+                </div>
+                <dl className="mobileTankDetails">
+                  <div><dt>อาคาร/ชั้น/โซน</dt><dd>{r.zone}</dd></div>
+                  <div><dt>ตำแหน่ง</dt><dd>{r.location}</dd></div>
+                  <div><dt>วันที่ตรวจ</dt><dd>{r.checkedAt}</dd></div>
+                  {r.inspector !== "ไม่ระบุ" && <div><dt>ผู้ตรวจ</dt><dd>{r.inspector}</dd></div>}
+                </dl>
+              </article>
             ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="mobileTankList">
-        {data.map((r) => (
-          <article key={`mobile-${title}-${r.id}`} className="mobileTankCard">
-            <div className="mobileTankHeader">
-              <h3>{r.id}</h3>
-              <span className={`statusBadge ${r.status}`}>{mobileStatusText(r.status)}</span>
-            </div>
-            <p><strong>อาคาร:</strong> {r.zone}</p>
-            <p><strong>จุดติดตั้ง:</strong> {r.location}</p>
-            <p><strong>สถานะ:</strong> {mobileStatusText(r.status)}</p>
-            <p><strong>{r.status === "unchecked" ? "วันที่ตรวจล่าสุด" : "เดือน/วันที่"}:</strong> {r.checkedAt}</p>
-            {r.inspector !== "ไม่ระบุ" && <p><strong>ผู้ตรวจ:</strong> {r.inspector}</p>}
-          </article>
-        ))}
-      </div>
+          </div>
+        </>
+      )}
     </section>
   );
 }
