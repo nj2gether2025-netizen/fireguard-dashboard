@@ -106,6 +106,9 @@ const parseStatus = (value: unknown): Extinguisher["status"] => {
 
 const needsInspection = (status: Extinguisher["status"]) => status !== "checked";
 
+const hasMonthStatusValue = (value: unknown) =>
+  value !== undefined && value !== null && String(value).trim() !== "";
+
 const getCurrentMonthStatusValue = (record: Record<string, unknown>) =>
   record[CURRENT_MONTH] ?? pick(record, ["status", "result", "สถานะ", "checked"]);
 
@@ -115,7 +118,7 @@ export default function HomePage() {
   const [error, setError] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(CURRENT_MONTH);
   const [selectedMap, setSelectedMap] = useState("all");
-  const [active, setActive] = useState<Extinguisher | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [tableView, setTableView] = useState<TableView>("unchecked");
 
   useEffect(() => {
@@ -161,21 +164,33 @@ export default function HomePage() {
     load();
   }, []);
 
-  const filtered = useMemo(
-    () =>
-      selectedMonth === "all"
-        ? rows
-        : rows.map((r) => ({
-            ...r,
-            status: parseStatus(r.monthlyStatuses[selectedMonth])
-          })),
-    [rows, selectedMonth]
-  );
+  const filtered = useMemo(() => {
+    if (selectedMonth === "all") {
+      // "all" intentionally keeps the current snapshot loaded from the source.
+      return rows;
+    }
+
+    return rows.map((r) => {
+      const monthStatus = r.monthlyStatuses[selectedMonth];
+      const hasRecordInSelectedMonth = hasMonthStatusValue(monthStatus);
+
+      return {
+        ...r,
+        status: hasRecordInSelectedMonth ? parseStatus(monthStatus) : "unchecked",
+        checkedAt: hasRecordInSelectedMonth ? selectedMonth : "ยังไม่ตรวจ"
+      };
+    });
+  }, [rows, selectedMonth]);
   const maps = useMemo(() => Array.from(new Set(filtered.map((r) => r.mapName))).sort(), [filtered]);
 
   const mapScoped = useMemo(
     () => (selectedMap === "all" ? filtered : filtered.filter((r) => r.mapName === selectedMap)),
     [filtered, selectedMap]
+  );
+
+  const activeItem = useMemo(
+    () => (activeId ? mapScoped.find((r) => r.id === activeId) ?? null : null),
+    [activeId, mapScoped]
   );
 
   const selectedMapImage = useMemo(() => {
@@ -187,6 +202,12 @@ export default function HomePage() {
       setSelectedMap("all");
     }
   }, [maps, selectedMap]);
+
+  useEffect(() => {
+    if (activeId && !mapScoped.some((r) => r.id === activeId)) {
+      setActiveId(null);
+    }
+  }, [activeId, mapScoped]);
 
   const kpi = useMemo(() => {
     const total = mapScoped.length;
@@ -246,7 +267,7 @@ export default function HomePage() {
             </div>
             <div className="filterControl">
               <label htmlFor="map">อาคาร/แผนผัง</label>
-              <select id="map" value={selectedMap} onChange={(e) => { setSelectedMap(e.target.value); setActive(null); }}>
+              <select id="map" value={selectedMap} onChange={(e) => { setSelectedMap(e.target.value); setActiveId(null); }}>
                 <option value="all">ทั้งหมด</option>
                 {maps.map((m) => (
                   <option key={m} value={m}>
@@ -261,7 +282,7 @@ export default function HomePage() {
             <EmptyState selectedMonth={selectedMonth} selectedMap={selectedMap} />
           ) : (
             <>
-              <MapSection data={mapScoped} mapImage={selectedMapImage} mapName={selectedMap} active={active} setActive={setActive} />
+              <MapSection data={mapScoped} mapImage={selectedMapImage} mapName={selectedMap} active={activeItem} setActiveId={setActiveId} />
               <section className="tablePanel">
                 <div className="tableTabs" aria-label="เลือกตารางถัง">
                   {tableOptions.map((option) => (
@@ -382,13 +403,13 @@ function MapSection({
   mapImage,
   mapName,
   active,
-  setActive
+  setActiveId
 }: {
   data: Extinguisher[];
   mapImage: string;
   mapName: string;
   active: Extinguisher | null;
-  setActive: (item: Extinguisher) => void;
+  setActiveId: (id: string) => void;
 }) {
   const [coordinate, setCoordinate] = useState<{ mapX: number; mapY: number } | null>(null);
   const [coordinateToolOpen, setCoordinateToolOpen] = useState(false);
@@ -464,7 +485,7 @@ function MapSection({
                   key={`marker-${r.id}`}
                   className={`marker ${r.status} ${active?.id === r.id ? "active" : ""}`}
                   style={{ left: `${r.mapX}%`, top: `${r.mapY}%` }}
-                  onClick={() => setActive(r)}
+                  onClick={() => setActiveId(r.id)}
                   aria-label={`ถัง ${r.id}`}
                 />
               );
